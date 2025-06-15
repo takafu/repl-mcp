@@ -1,0 +1,35 @@
+{
+  "name": "repl-mcp",
+  "version": "0.1.0",
+  "description": "Universal REPL session manager MCP server",
+  "type": "module",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "start": "npm run build && node build/index.js",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "repl",
+    "pry",
+    "irb",
+    "ipython",
+    "session-management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "node-pty": "github:microsoft/node-pty#main",
+    "strip-ansi": "^7.1.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  },
+  "bin": {
+    "repl-mcp": "./build/index.js"
+  }
+}

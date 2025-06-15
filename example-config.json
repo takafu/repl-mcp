@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "repl-mcp": {
+      "command": "node",
+      "args": ["C:/Users/takaf/OneDrive/Desktop/repl-mcp/build/index.js"],
+      "disabled": false,
+      "alwaysAllow": []
+    }
+  }
+}
