@@ -149,29 +149,6 @@ List all available predefined REPL configurations.
 }
 ```
 
-### Create Custom Python Environment
-
-```json
-{
-  "tool": "create_repl_session",
-  "arguments": {
-    "customConfig": {
-      "name": "Data Science Environment",
-      "type": "ipython",
-      "shell": "bash",
-      "setupCommands": [
-        "cd /path/to/data/project",
-        "source venv/bin/activate"
-      ],
-      "replCommand": "ipython",
-      "environment": {
-        "PYTHONPATH": "/path/to/custom/modules"
-      }
-    }
-  }
-}
-```
-
 ## Session Management
 
 Each session maintains:
