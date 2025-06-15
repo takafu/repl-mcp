@@ -1,24 +1,26 @@
 # REPL MCP Server
 
-A universal REPL session manager MCP server that provides tools for creating and managing interactive shell sessions with various REPLs including pry, irb, ipython, node, and more.
+A universal REPL session manager MCP server that provides tools for creating and managing interactive shell sessions with various REPLs including pry, irb, python, and node.
 
 ## Features
 
-- **Multiple REPL Support**: pry, irb, ipython, node, python, and custom REPLs
+- **Multiple REPL Support**: pry, irb, python, and node
 - **Session Management**: Create, manage, and destroy multiple concurrent REPL sessions
 - **Customizable Setup**: Configure shell type, setup commands, and environment variables
 - **Cross-Platform**: Works on Windows, macOS, and Linux
-- **Prompt Detection**: Automatic detection of REPL prompts and command completion
 - **Error Handling**: Proper error detection and reporting
 
 ## Installation
 
 1. Clone or download this repository to your MCP servers directory
 2. Install dependencies:
+
    ```bash
    npm install
    ```
+
 3. Build the project:
+
    ```bash
    npm run build
    ```
@@ -45,10 +47,12 @@ Add the server to your MCP settings file (e.g., `mcp_settings.json`):
 Create a new REPL session with predefined or custom configuration.
 
 **Parameters:**
+
 - `configName` (optional): Name of predefined configuration
 - `customConfig` (optional): Custom configuration object
 
 **Example:**
+
 ```json
 {
   "configName": "pry"
@@ -56,6 +60,7 @@ Create a new REPL session with predefined or custom configuration.
 ```
 
 Or with custom config:
+
 ```json
 {
   "customConfig": {
@@ -73,11 +78,13 @@ Or with custom config:
 Execute a command in an existing REPL session.
 
 **Parameters:**
+
 - `sessionId`: The session ID
 - `command`: Command to execute
 - `timeout` (optional): Timeout in milliseconds
 
 **Example:**
+
 ```json
 {
   "sessionId": "session_1234567890_abc123",
@@ -94,6 +101,7 @@ List all active REPL sessions.
 Get detailed information about a specific session.
 
 **Parameters:**
+
 - `sessionId`: The session ID
 
 ### `destroy_repl_session`
@@ -101,6 +109,7 @@ Get detailed information about a specific session.
 Destroy an existing REPL session.
 
 **Parameters:**
+
 - `sessionId`: The session ID
 
 ### `list_repl_configurations`
@@ -111,23 +120,19 @@ List all available predefined REPL configurations.
 
 - **pry**: Basic Pry REPL
 - **irb**: Basic IRB REPL
-- **rails_console**: Rails console using Pry
-- **rails_console_production**: Rails console in production mode
 - **ipython**: IPython REPL
-- **python**: Basic Python REPL
 - **node**: Node.js REPL
-- **ruby_with_bundler**: Ruby IRB with Bundler
-- **pry_with_bundler**: Pry with Bundler
+- **python**: Basic Python REPL
 
 ## Usage Examples
 
-### Create a Rails Console Session
+### Create a Python Session
 
 ```json
 {
   "tool": "create_repl_session",
   "arguments": {
-    "configName": "rails_console"
+    "configName": "python"
   }
 }
 ```
@@ -170,6 +175,7 @@ List all available predefined REPL configurations.
 ## Session Management
 
 Each session maintains:
+
 - Unique session ID
 - Configuration details
 - Current status (initializing, ready, executing, error, terminated)
@@ -180,6 +186,7 @@ Each session maintains:
 ## Error Handling
 
 The server provides comprehensive error handling:
+
 - Session creation failures
 - Command execution timeouts
 - REPL crashes and recovery
@@ -205,10 +212,12 @@ This will start TypeScript in watch mode for development.
 ## Platform-Specific Notes
 
 ### Windows
+
 - Uses `cmd` or `powershell` as default shell
 - Some REPL features may behave differently
 
 ### macOS/Linux
+
 - Uses `bash` or `zsh` as default shell
 - Full feature support
 
@@ -218,7 +227,6 @@ This will start TypeScript in watch mode for development.
 
 1. **Session creation fails**: Check that the required REPL command is installed and accessible
 2. **Commands timeout**: Increase timeout value or check REPL responsiveness
-3. **Prompt not detected**: The REPL may not be fully initialized, wait and retry
 
 ### Debug Mode
 
