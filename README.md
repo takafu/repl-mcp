@@ -228,14 +228,6 @@ This will start TypeScript in watch mode for development.
 1. **Session creation fails**: Check that the required REPL command is installed and accessible
 2. **Commands timeout**: Increase timeout value or check REPL responsiveness
 
-### Debug Mode
-
-Set environment variable `DEBUG=1` for verbose logging:
-
-```bash
-DEBUG=1 node build/index.js
-```
-
 ## License
 
 MIT License
