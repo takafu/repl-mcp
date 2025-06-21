@@ -3,6 +3,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { SessionManager } from './session-manager.js'; // Remove writeFileSync import
 import { REPLConfig } from './types.js';
 import { DEFAULT_REPL_CONFIGS, createCustomConfig, getConfigByName, listAvailableConfigs } from './repl-configs.js';
@@ -52,32 +53,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create_repl_session",
         description: "Create a new REPL session with predefined or custom configuration",
-        inputSchema: CreateSessionSchema
+        inputSchema: zodToJsonSchema(CreateSessionSchema)
       },
       {
         name: "execute_repl_command",
         description: "Execute a command in an existing REPL session",
-        inputSchema: ExecuteCommandSchema
+        inputSchema: zodToJsonSchema(ExecuteCommandSchema)
       },
       {
         name: "list_repl_sessions",
         description: "List all active REPL sessions",
-        inputSchema: z.object({})
+        inputSchema: zodToJsonSchema(z.object({}))
       },
       {
         name: "get_session_details",
         description: "Get detailed information about a specific session",
-        inputSchema: SessionIdSchema
+        inputSchema: zodToJsonSchema(SessionIdSchema)
       },
       {
         name: "destroy_repl_session",
         description: "Destroy an existing REPL session",
-        inputSchema: SessionIdSchema
+        inputSchema: zodToJsonSchema(SessionIdSchema)
       },
       {
         name: "list_repl_configurations",
         description: "List all available predefined REPL configurations",
-        inputSchema: z.object({})
+        inputSchema: zodToJsonSchema(z.object({}))
       }
     ]
   };
