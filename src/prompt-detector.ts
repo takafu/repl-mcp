@@ -27,7 +27,7 @@ export class PromptDetector {
     python: /^\.\.\.\s*$/m
   };
 
-  public static detectPrompt(output: string, expectedType?: string): PromptInfo {
+  public static detectPrompt(output: string, expectedType?: string, learnedPatterns: string[] = []): PromptInfo {
     // Normalize line endings and split
     const lines = output.replace(/\r\n/g, '\n').split('\n');
     if (lines.length === 0) {
@@ -48,8 +48,8 @@ export class PromptDetector {
       console.log(`[DEBUG PromptDetector] Checking line ${i}: "${originalLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`);
       console.log(`[DEBUG PromptDetector] Cleaned line ${i}: "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`);
 
-      // Test this line for prompts
-      const promptResult = this.testLineForPrompt(cleanLine, expectedType);
+      // Test this line for prompts (including learned patterns)
+      const promptResult = this.testLineForPrompt(cleanLine, expectedType, learnedPatterns);
       if (promptResult.detected) {
         return promptResult;
       }
@@ -61,7 +61,20 @@ export class PromptDetector {
     return { detected: false, type: 'unknown', ready: false, prompt: cleanLastLine };
   }
 
-  private static testLineForPrompt(cleanLine: string, expectedType?: string): PromptInfo {
+  private static testLineForPrompt(cleanLine: string, expectedType?: string, learnedPatterns: string[] = []): PromptInfo {
+    
+    // Check learned patterns first (highest priority)
+    for (const learnedPattern of learnedPatterns) {
+      if (cleanLine.includes(learnedPattern)) {
+        console.log(`[DEBUG PromptDetector] Matched learned pattern "${learnedPattern}" in line "${cleanLine}"`);
+        return {
+          detected: true,
+          type: expectedType || 'learned',
+          ready: true,
+          prompt: cleanLine
+        };
+      }
+    }
     
     // Check for specific type if provided
     if (expectedType && this.PROMPT_PATTERNS[expectedType]) {

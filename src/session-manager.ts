@@ -37,7 +37,8 @@ export class SessionManager {
       history: [],
       lastOutput: '',
       createdAt: new Date(),
-      lastActivity: new Date()
+      lastActivity: new Date(),
+      learnedPromptPatterns: []
     };
 
     this.sessions.set(sessionId, sessionState);
@@ -370,7 +371,7 @@ Please respond with one of:
           this.log(`[DEBUG ${sessionId}] Last line: "${lastLine}"`);
         }
         
-        const promptInfo = PromptDetector.detectPrompt(output, session.config.type);
+        const promptInfo = PromptDetector.detectPrompt(output, session.config.type, session.learnedPromptPatterns);
         
         // Debug logging for troubleshooting
         if (output.length > 0) {
@@ -449,9 +450,14 @@ What should I do?`;
     switch (guidance.action) {
       case 'ready':
         // LLM says the session is ready with detected pattern
+        const learnedPattern = guidance.payload?.pattern;
+        if (learnedPattern && !session.learnedPromptPatterns.includes(learnedPattern)) {
+          session.learnedPromptPatterns.push(learnedPattern);
+          this.log(`[DEBUG ${sessionId}] Learned new prompt pattern: "${learnedPattern}"`);
+        }
         session.status = 'ready';
         session.lastActivity = new Date();
-        this.log(`[DEBUG ${sessionId}] LLM declared session ready with pattern: ${guidance.payload?.pattern}`);
+        this.log(`[DEBUG ${sessionId}] LLM declared session ready with pattern: ${learnedPattern}`);
         return {
           success: true,
           output: this.outputBuffers.get(sessionId) || '',

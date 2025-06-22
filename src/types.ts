@@ -23,6 +23,8 @@ export interface SessionState {
   lastError?: string;
   createdAt: Date;
   lastActivity: Date;
+  // LLM learned prompt patterns for this session
+  learnedPromptPatterns: string[];
 }
 
 export interface CommandResult {
