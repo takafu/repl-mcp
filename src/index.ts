@@ -34,22 +34,32 @@ const CreateSessionSchema = z.object({
     environment: z.record(z.string()).optional().describe("Environment variables"),
     timeout: z.number().optional().describe("Command timeout in milliseconds")
   }).optional().describe("Custom configuration"),
+  debug: z.boolean().optional().describe("Include debug logs in response (default: auto - included for failures/LLM assistance)")
 });
 
 const ExecuteCommandSchema = z.object({
   sessionId: z.string().describe("Session ID"),
   command: z.string().describe("Command to execute"),
-  timeout: z.number().optional().describe("Timeout in milliseconds (default: 30000)"),
-  llmResponse: z.string().optional().describe("LLM response to previous question (e.g., READY:pattern, SEND:command, WAIT:seconds, FAILED:reason)")
+  timeout: z.number().optional().describe("Timeout in milliseconds (default: 30000)")
 });
 
 const SessionIdSchema = z.object({
-  sessionId: z.string().describe("Session ID")
+  sessionId: z.string().describe("Session ID"),
+  debug: z.boolean().optional().describe("Include debug logs in response (default: false)")
 });
 
 const AnswerSessionQuestionSchema = z.object({
   sessionId: z.string().describe("Session ID"),
-  answer: z.string().describe("Answer to the session question (e.g., READY:❯, SEND:\\n, WAIT:3, FAILED:reason)")
+  answer: z.string().describe("Answer to the session question (e.g., READY:❯, SEND:\\n, WAIT:3, FAILED:reason)"),
+  debug: z.boolean().optional().describe("Include debug logs in response (default: false)")
+});
+
+const ListSessionsSchema = z.object({
+  debug: z.boolean().optional().describe("Include debug logs in response (default: false)")
+});
+
+const ListConfigsSchema = z.object({
+  debug: z.boolean().optional().describe("Include debug logs in response (default: false)")
 });
 
 // Handle list tools request
@@ -69,7 +79,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "list_repl_sessions",
         description: "List all active REPL sessions",
-        inputSchema: zodToJsonSchema(z.object({}))
+        inputSchema: zodToJsonSchema(ListSessionsSchema)
       },
       {
         name: "get_session_details",
@@ -84,7 +94,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "list_repl_configurations",
         description: "List all available predefined REPL configurations",
-        inputSchema: zodToJsonSchema(z.object({}))
+        inputSchema: zodToJsonSchema(ListConfigsSchema)
       },
       {
         name: "answer_session_question",
@@ -103,7 +113,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case "create_repl_session": {
         const params = CreateSessionSchema.parse(args);
-        const { configName, customConfig } = params;
+        const { configName, customConfig, debug } = params;
 
         let config: REPLConfig;
 
@@ -137,15 +147,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const result = await sessionManager.createSession(config);
         
+        const response: any = {
+          ...result,
+          config: config.name
+        };
+        
+        // Auto-include debug logs for failures, LLM assistance, or when explicitly requested
+        if (debug || !result.success || result.question) {
+          response.debugLogs = sessionManager.getDebugLogs(result.sessionId);
+        }
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                ...result,
-                config: config.name,
-                debugLogs: sessionManager.getDebugLogs()
-              }, null, 2)
+              text: JSON.stringify(response, null, 2)
             }
           ]
         };
@@ -153,9 +169,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "execute_repl_command": {
         const params = ExecuteCommandSchema.parse(args);
-        const { sessionId, command, timeout, llmResponse } = params;
+        const { sessionId, command, timeout } = params;
 
-        const result = await sessionManager.executeCommand(sessionId, command, timeout, llmResponse);
+        const result = await sessionManager.executeCommand(sessionId, command, timeout);
         
         return {
           content: [
@@ -178,25 +194,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "list_repl_sessions": {
+        const params = ListSessionsSchema.parse(args);
         const sessions = sessionManager.listSessions();
+        
+        const response: any = {
+          success: true,
+          sessions: sessions.map(session => ({
+            id: session.id,
+            name: session.config.name,
+            type: session.config.type,
+            status: session.status,
+            createdAt: session.createdAt,
+            lastActivity: session.lastActivity,
+            historyCount: session.history.length
+          }))
+        };
+        
+        // Only include debug logs if explicitly requested
+        if (params.debug) {
+          response.debugLogs = sessionManager.getDebugLogs();
+        }
         
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                success: true,
-                sessions: sessions.map(session => ({
-                  id: session.id,
-                  name: session.config.name,
-                  type: session.config.type,
-                  status: session.status,
-                  createdAt: session.createdAt,
-                  lastActivity: session.lastActivity,
-                  historyCount: session.history.length
-                })),
-                debugLogs: sessionManager.getDebugLogs() // Include debug logs
-              }, null, 2)
+              text: JSON.stringify(response, null, 2)
             }
           ]
         };
@@ -204,7 +227,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "get_session_details": {
         const params = SessionIdSchema.parse(args);
-        const { sessionId } = params;
+        const { sessionId, debug } = params;
 
         const session = sessionManager.getSession(sessionId);
         
@@ -223,25 +246,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
+        const response: any = {
+          success: true,
+          session: {
+            id: session.id,
+            config: session.config,
+            status: session.status,
+            currentDirectory: session.currentDirectory,
+            history: session.history,
+            lastOutput: session.lastOutput,
+            lastError: session.lastError,
+            createdAt: session.createdAt,
+            lastActivity: session.lastActivity
+          }
+        };
+        
+        // Only include debug logs if explicitly requested
+        if (debug) {
+          response.debugLogs = sessionManager.getDebugLogs(sessionId);
+        }
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                success: true,
-                session: {
-                  id: session.id,
-                  config: session.config,
-                  status: session.status,
-                  currentDirectory: session.currentDirectory,
-                  history: session.history,
-                  lastOutput: session.lastOutput,
-                  lastError: session.lastError,
-                  createdAt: session.createdAt,
-                  lastActivity: session.lastActivity
-                },
-                debugLogs: sessionManager.getDebugLogs() // Include debug logs
-              }, null, 2)
+              text: JSON.stringify(response, null, 2)
             }
           ]
         };
@@ -269,21 +298,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "list_repl_configurations": {
+        const params = ListConfigsSchema.parse(args);
         const configs = listAvailableConfigs();
         const configDetails = configs.map((name: string) => ({
           name,
           config: DEFAULT_REPL_CONFIGS[name]
         }));
         
+        const response: any = {
+          success: true,
+          configurations: configDetails
+        };
+        
+        // Only include debug logs if explicitly requested  
+        if (params.debug) {
+          response.debugLogs = sessionManager.getDebugLogs();
+        }
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                success: true,
-                configurations: configDetails,
-                debugLogs: sessionManager.getDebugLogs() // Include debug logs
-              }, null, 2)
+              text: JSON.stringify(response, null, 2)
             }
           ]
         };
@@ -291,19 +327,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "answer_session_question": {
         const params = AnswerSessionQuestionSchema.parse(args);
-        const { sessionId, answer } = params;
+        const { sessionId, answer, debug } = params;
 
-        // Use the existing executeCommand with llmResponse to handle the answer
-        const result = await sessionManager.executeCommand(sessionId, "", 30000, answer);
+        // Use the dedicated answerSessionQuestion method to handle the answer
+        const result = await sessionManager.answerSessionQuestion(sessionId, answer);
+        
+        const response: any = { ...result };
+        
+        // Always include debug logs for LLM-assisted operations or when explicitly requested
+        if (debug || !result.success || result.question) {
+          response.debugLogs = sessionManager.getDebugLogs(sessionId);
+        }
         
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                ...result,
-                debugLogs: sessionManager.getDebugLogs()
-              }, null, 2)
+              text: JSON.stringify(response, null, 2)
             }
           ]
         };
@@ -328,7 +368,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           text: JSON.stringify({
             success: false,
             error: error instanceof Error ? error.message : String(error),
-            debugLogs: sessionManager.getDebugLogs() // Include debug logs
+            debugLogs: sessionManager.getDebugLogs() // Global logs for errors
           }, null, 2)
         }
       ],

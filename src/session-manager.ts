@@ -7,27 +7,76 @@ import * as os from 'os';
 export class SessionManager {
   private sessions: Map<string, SessionState> = new Map();
   private outputBuffers: Map<string, string> = new Map();
-  private debugLogs: string[] = []; // In-memory log storage
+  private sessionLogs: Map<string, string[]> = new Map(); // Session-specific logs
+  private globalLogs: string[] = []; // Global logs (server events)
+  private readonly MAX_LOGS_PER_SESSION = 50; // Limit logs per session
+  private readonly MAX_GLOBAL_LOGS = 100; // Limit global logs
 
-  private log(message: string) {
+  private log(message: string, sessionId?: string) {
     const timestamp = new Date().toISOString();
-    this.debugLogs.push(`${timestamp}: ${message}`);
-    console.error(`${timestamp}: ${message}`); // Also log to console.error for immediate visibility
+    const logEntry = `${timestamp}: ${message}`;
+    
+    if (sessionId) {
+      // Session-specific log
+      if (!this.sessionLogs.has(sessionId)) {
+        this.sessionLogs.set(sessionId, []);
+      }
+      const sessionLogArray = this.sessionLogs.get(sessionId)!;
+      sessionLogArray.push(logEntry);
+      
+      // Rotate session logs if too many
+      if (sessionLogArray.length > this.MAX_LOGS_PER_SESSION) {
+        sessionLogArray.splice(0, sessionLogArray.length - this.MAX_LOGS_PER_SESSION);
+      }
+    } else {
+      // Global log
+      this.globalLogs.push(logEntry);
+      
+      // Rotate global logs if too many
+      if (this.globalLogs.length > this.MAX_GLOBAL_LOGS) {
+        this.globalLogs.splice(0, this.globalLogs.length - this.MAX_GLOBAL_LOGS);
+      }
+    }
+    
+    console.error(logEntry); // Also log to console.error for immediate visibility
   }
 
-  public getDebugLogs(): string[] {
-    return this.debugLogs;
+  public getDebugLogs(sessionId?: string): string[] {
+    if (sessionId) {
+      // Return session-specific logs + recent global logs
+      const sessionLogArray = this.sessionLogs.get(sessionId) || [];
+      const recentGlobalLogs = this.globalLogs.slice(-10); // Last 10 global logs
+      return [...recentGlobalLogs, ...sessionLogArray];
+    } else {
+      // Return all logs (for backward compatibility)
+      const allSessionLogs = Array.from(this.sessionLogs.values()).flat();
+      return [...this.globalLogs, ...allSessionLogs];
+    }
   }
 
-  public clearDebugLogs(): void {
-    this.debugLogs = [];
+  public clearDebugLogs(sessionId?: string): void {
+    if (sessionId) {
+      this.sessionLogs.delete(sessionId);
+    } else {
+      this.sessionLogs.clear();
+      this.globalLogs = [];
+    }
+  }
+
+  public getLogStats(): { totalSessions: number, totalLogs: number, globalLogs: number } {
+    const totalLogs = Array.from(this.sessionLogs.values()).reduce((sum, logs) => sum + logs.length, 0);
+    return {
+      totalSessions: this.sessionLogs.size,
+      totalLogs: totalLogs,
+      globalLogs: this.globalLogs.length
+    };
   }
 
   public async createSession(config: REPLConfig): Promise<SessionCreationResult> {
     const sessionId = this.generateSessionId();
     const workingDir = config.workingDirectory || process.cwd();
 
-    this.log(`[DEBUG ${sessionId}] Starting session creation for ${config.type}`);
+    this.log(`[DEBUG ${sessionId}] Starting session creation for ${config.type}`, sessionId);
 
     const sessionState: SessionState = {
       id: sessionId,
@@ -46,21 +95,21 @@ export class SessionManager {
 
     try {
       // Create shell process
-      this.log(`[DEBUG ${sessionId}] Creating shell process`);
+      this.log(`[DEBUG ${sessionId}] Creating shell process`, sessionId);
       const shellProcess = this.createShellProcess(config, workingDir);
       sessionState.process = shellProcess;
 
       // Setup output handlers
-      this.log(`[DEBUG ${sessionId}] Setting up output handlers`);
+      this.log(`[DEBUG ${sessionId}] Setting up output handlers`, sessionId);
       this.setupOutputHandlers(sessionId, shellProcess);
 
       // Wait for shell to be ready (with LLM fallback)
-      this.log(`[DEBUG ${sessionId}] Waiting for shell to be ready`);
+      this.log(`[DEBUG ${sessionId}] Waiting for shell to be ready`, sessionId);
       try {
         await this.waitForShellReady(sessionId);
       } catch (error) {
         // Try LLM-assisted prompt detection
-        this.log(`[DEBUG ${sessionId}] Standard prompt detection failed, trying LLM fallback`);
+        this.log(`[DEBUG ${sessionId}] Standard prompt detection failed, trying LLM fallback`, sessionId);
         const result = await this.waitForPromptWithLLMFallback(sessionId, 10000);
         if (!result.success) {
           // If LLM fallback returns a question, this is a different kind of error
@@ -73,26 +122,26 @@ export class SessionManager {
       }
 
       // Execute setup commands
-      this.log(`[DEBUG ${sessionId}] Executing setup commands: ${config.setupCommands.length}`);
+      this.log(`[DEBUG ${sessionId}] Executing setup commands: ${config.setupCommands.length}`, sessionId);
       for (const command of config.setupCommands) {
         await this.executeSetupCommand(sessionId, command);
       }
 
       // Start REPL or execute direct test commands for cmd_test
       // Start REPL
-      this.log(`[DEBUG ${sessionId}] Starting REPL: ${config.replCommand}`);
+      this.log(`[DEBUG ${sessionId}] Starting REPL: ${config.replCommand}`, sessionId);
       await this.startREPL(sessionId, config.replCommand);
 
       sessionState.status = 'ready';
       sessionState.lastActivity = new Date();
 
-      this.log(`[DEBUG ${sessionId}] Session ready`);
+      this.log(`[DEBUG ${sessionId}] Session ready`, sessionId);
       return {
         success: true,
         sessionId
       };
     } catch (error) {
-      this.log(`[DEBUG ${sessionId}] Session creation failed: ${error}`);
+      this.log(`[DEBUG ${sessionId}] Session creation failed: ${error}`, sessionId);
       sessionState.status = 'error';
       sessionState.lastError = error instanceof Error ? error.message : String(error);
       
@@ -100,7 +149,7 @@ export class SessionManager {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('timeout')) {
         const rawOutput = this.outputBuffers.get(sessionId) || '';
-        this.log(`[DEBUG ${sessionId}] Timeout detected, offering LLM assistance`);
+        this.log(`[DEBUG ${sessionId}] Timeout detected, offering LLM assistance`, sessionId);
         
         return {
           success: false,
@@ -138,15 +187,10 @@ Please respond with one of:
     }
   }
 
-  public async executeCommand(sessionId: string, command: string, timeout: number = 30000, llmResponse?: string): Promise<CommandResult> {
+  public async executeCommand(sessionId: string, command: string, timeout: number = 30000): Promise<CommandResult> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
-    }
-
-    // Handle LLM guidance if provided (can work with any session status)
-    if (llmResponse) {
-      return await this.handleLLMGuidance(sessionId, llmResponse);
     }
 
     if (session.status !== 'ready') {
@@ -208,6 +252,10 @@ Please respond with one of:
     return Array.from(this.sessions.values());
   }
 
+  public async answerSessionQuestion(sessionId: string, answer: string): Promise<CommandResult> {
+    return await this.handleLLMGuidance(sessionId, answer);
+  }
+
   public async destroySession(sessionId: string): Promise<boolean> {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -220,6 +268,7 @@ Please respond with one of:
 
     this.sessions.delete(sessionId);
     this.outputBuffers.delete(sessionId);
+    this.sessionLogs.delete(sessionId); // Clean up session-specific logs
     
     return true;
   }
@@ -274,7 +323,7 @@ Please respond with one of:
 
     // node-pty uses onData method instead of 'data' event
     process.onData((data) => {
-      this.log(`[DEBUG ${sessionId}] Raw data received: ${JSON.stringify(data)}`);
+      this.log(`[DEBUG ${sessionId}] Raw data received: ${JSON.stringify(data)}`, sessionId);
       appendOutput(data);
     });
 
@@ -362,21 +411,21 @@ Please respond with one of:
         const output = this.outputBuffers.get(sessionId) || '';
         
         // Debug logging before prompt detection
-        this.log(`[DEBUG ${sessionId}] Testing prompt detection with expectedType: ${session.config.type}`);
-        this.log(`[DEBUG ${sessionId}] Output length: ${output.length}`);
+        this.log(`[DEBUG ${sessionId}] Testing prompt detection with expectedType: ${session.config.type}`, sessionId);
+        this.log(`[DEBUG ${sessionId}] Output length: ${output.length}`, sessionId);
         
         if (output.length > 0) {
           const lines = output.replace(/\r\n/g, '\n').split('\n').filter(line => line.trim());
           const lastLine = lines.length > 0 ? lines[lines.length - 1] : '';
-          this.log(`[DEBUG ${sessionId}] Last line: "${lastLine}"`);
+          this.log(`[DEBUG ${sessionId}] Last line: "${lastLine}"`, sessionId);
         }
         
         const promptInfo = PromptDetector.detectPrompt(output, session.config.type, session.learnedPromptPatterns);
         
         // Debug logging for troubleshooting
         if (output.length > 0) {
-          this.log(`[DEBUG ${sessionId}] Output: "${output}"`);
-          this.log(`[DEBUG ${sessionId}] Prompt detected: ${promptInfo.detected}, ready: ${promptInfo.ready}, type: ${promptInfo.type}`);
+          this.log(`[DEBUG ${sessionId}] Output: "${output}"`, sessionId);
+          this.log(`[DEBUG ${sessionId}] Prompt detected: ${promptInfo.detected}, ready: ${promptInfo.ready}, type: ${promptInfo.type}`, sessionId);
         }
         
         if (promptInfo.detected && promptInfo.ready) {
@@ -453,11 +502,11 @@ What should I do?`;
         const learnedPattern = guidance.payload?.pattern;
         if (learnedPattern && !session.learnedPromptPatterns.includes(learnedPattern)) {
           session.learnedPromptPatterns.push(learnedPattern);
-          this.log(`[DEBUG ${sessionId}] Learned new prompt pattern: "${learnedPattern}"`);
+          this.log(`[DEBUG ${sessionId}] Learned new prompt pattern: "${learnedPattern}"`, sessionId);
         }
         session.status = 'ready';
         session.lastActivity = new Date();
-        this.log(`[DEBUG ${sessionId}] LLM declared session ready with pattern: ${learnedPattern}`);
+        this.log(`[DEBUG ${sessionId}] LLM declared session ready with pattern: ${learnedPattern}`, sessionId);
         return {
           success: true,
           output: this.outputBuffers.get(sessionId) || '',
@@ -467,7 +516,7 @@ What should I do?`;
       case 'send':
         // Send the command suggested by LLM
         const command = guidance.payload?.command || '';
-        this.log(`[DEBUG ${sessionId}] LLM suggested sending command: ${JSON.stringify(command)}`);
+        this.log(`[DEBUG ${sessionId}] LLM suggested sending command: ${JSON.stringify(command)}`, sessionId);
         session.process!.write(command);
         
         // Wait for response and potentially ask LLM again
@@ -488,7 +537,7 @@ What should I do?`;
       case 'wait':
         // Wait for specified duration then retry
         const seconds = guidance.payload?.seconds || 3;
-        this.log(`[DEBUG ${sessionId}] LLM suggested waiting ${seconds} seconds`);
+        this.log(`[DEBUG ${sessionId}] LLM suggested waiting ${seconds} seconds`, sessionId);
         
         await new Promise(resolve => setTimeout(resolve, seconds * 1000));
         

@@ -83,14 +83,13 @@ Or with custom config:
 
 ### `execute_repl_command`
 
-Execute a command in an existing REPL session with optional LLM guidance support.
+Execute a command in an existing REPL session.
 
 **Parameters:**
 
 - `sessionId`: The session ID
 - `command`: Command to execute
 - `timeout` (optional): Timeout in milliseconds (default: 30000)
-- `llmResponse` (optional): LLM guidance response for timeout recovery
 
 **Example:**
 
@@ -98,16 +97,6 @@ Execute a command in an existing REPL session with optional LLM guidance support
 {
   "sessionId": "session_1234567890_abc123",
   "command": "puts 'Hello, World!'"
-}
-```
-
-**With LLM Guidance:**
-
-```json
-{
-  "sessionId": "session_1234567890_abc123",
-  "command": "",
-  "llmResponse": "READY:❯"
 }
 ```
 
@@ -404,7 +393,7 @@ This will start TypeScript in watch mode for development.
 #### LLM-Assisted Issues
 1. **LLM guidance not working**: Ensure you're using the `answer_session_question` tool with proper response format
 2. **Pattern not learned**: Check that the LLM response follows the `READY:pattern` format exactly
-3. **Timeout questions ignored**: Use `execute_repl_command` with `llmResponse` parameter to provide guidance
+3. **Timeout questions ignored**: Use `answer_session_question` tool to provide LLM guidance
 
 ### Best Practices
 
