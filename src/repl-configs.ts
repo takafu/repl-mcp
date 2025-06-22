@@ -81,6 +81,24 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     setupCommands: [],
     replCommand: 'python',
     timeout: 10000
+  },
+
+  bash: {
+    name: 'Bash Shell',
+    type: 'custom',
+    shell: 'bash',
+    setupCommands: [],
+    replCommand: '',
+    timeout: 30000
+  },
+
+  zsh: {
+    name: 'Zsh Shell',
+    type: 'custom',
+    shell: 'zsh',
+    setupCommands: [],
+    replCommand: '',
+    timeout: 30000
   }
 };
 

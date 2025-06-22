@@ -10,6 +10,9 @@ export class PromptDetector {
     python: /^>>>\s*$/m,
     rails_console: /^\[\d+\] pry\([^)]+\)>(?:\s*|\u001b\[[0-9;]*[A-Za-z])*\s*$/m,
     cmd: /[a-zA-Z]:\\[^>]*?>\s*$/, // Match drive path followed by > at end of line
+    bash: /\$\s*$/, // Match bash prompts ending with $
+    zsh: /[%$#]\s*$/, // Match zsh prompts ending with %, $ or #
+    custom: /[$#%]\s*$/, // Generic shell prompt pattern
   };
 
   private static stripAnsiCodes(str: string): string {
