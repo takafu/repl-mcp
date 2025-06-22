@@ -1,6 +1,6 @@
 import { ChildProcess } from 'child_process';
 import * as nodePty from 'node-pty';
-import { REPLConfig, SessionState, CommandResult } from './types.js';
+import { REPLConfig, SessionState, CommandResult, LLMGuidance, SessionCreationResult } from './types.js';
 import { PromptDetector } from './prompt-detector.js';
 import * as os from 'os';
 
@@ -23,7 +23,7 @@ export class SessionManager {
     this.debugLogs = [];
   }
 
-  public async createSession(config: REPLConfig): Promise<string> {
+  public async createSession(config: REPLConfig): Promise<SessionCreationResult> {
     const sessionId = this.generateSessionId();
     const workingDir = config.workingDirectory || process.cwd();
 
@@ -53,9 +53,23 @@ export class SessionManager {
       this.log(`[DEBUG ${sessionId}] Setting up output handlers`);
       this.setupOutputHandlers(sessionId, shellProcess);
 
-      // Wait for shell to be ready
+      // Wait for shell to be ready (with LLM fallback)
       this.log(`[DEBUG ${sessionId}] Waiting for shell to be ready`);
-      await this.waitForShellReady(sessionId);
+      try {
+        await this.waitForShellReady(sessionId);
+      } catch (error) {
+        // Try LLM-assisted prompt detection
+        this.log(`[DEBUG ${sessionId}] Standard prompt detection failed, trying LLM fallback`);
+        const result = await this.waitForPromptWithLLMFallback(sessionId, 10000);
+        if (!result.success) {
+          // If LLM fallback returns a question, this is a different kind of error
+          if (result.question) {
+            throw new Error(`Session needs LLM assistance: ${result.question}`);
+          }
+          throw new Error(result.error || 'Shell initialization failed');
+        }
+        // LLM fallback succeeded, continue with session creation
+      }
 
       // Execute setup commands
       this.log(`[DEBUG ${sessionId}] Executing setup commands: ${config.setupCommands.length}`);
@@ -72,19 +86,66 @@ export class SessionManager {
       sessionState.lastActivity = new Date();
 
       this.log(`[DEBUG ${sessionId}] Session ready`);
-      return sessionId;
+      return {
+        success: true,
+        sessionId
+      };
     } catch (error) {
       this.log(`[DEBUG ${sessionId}] Session creation failed: ${error}`);
       sessionState.status = 'error';
       sessionState.lastError = error instanceof Error ? error.message : String(error);
-      throw error;
+      
+      // Check if this is a timeout error that could benefit from LLM assistance
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('timeout')) {
+        const rawOutput = this.outputBuffers.get(sessionId) || '';
+        this.log(`[DEBUG ${sessionId}] Timeout detected, offering LLM assistance`);
+        
+        return {
+          success: false,
+          sessionId,
+          question: `Session creation timed out. Here's the raw output - please analyze and respond:
+
+Raw output:
+"""
+${rawOutput}
+"""
+
+Timeout error: ${errorMessage}
+
+Please respond with one of:
+- READY:{pattern} - if you see a working prompt, specify the pattern
+- SEND:{command} - if a command should be sent (e.g., \\n for Enter, \\x03 for Ctrl+C)  
+- WAIT:{seconds} - if we should wait longer (specify number of seconds)
+- FAILED:{reason} - if this should be considered a failure`,
+          questionType: 'session_timeout',
+          context: {
+            sessionId,
+            rawOutput,
+            timeoutError: errorMessage
+          },
+          canContinue: true
+        };
+      }
+      
+      // For non-timeout errors, just return failure
+      return {
+        success: false,
+        sessionId,
+        error: errorMessage
+      };
     }
   }
 
-  public async executeCommand(sessionId: string, command: string, timeout: number = 30000): Promise<CommandResult> {
+  public async executeCommand(sessionId: string, command: string, timeout: number = 30000, llmResponse?: string): Promise<CommandResult> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
+    }
+
+    // Handle LLM guidance if provided (can work with any session status)
+    if (llmResponse) {
+      return await this.handleLLMGuidance(sessionId, llmResponse);
     }
 
     if (session.status !== 'ready') {
@@ -104,7 +165,12 @@ export class SessionManager {
       session.process!.write(command + '\r\n');
 
       // Wait for prompt to return
-      const output = await this.waitForPrompt(sessionId, timeout);
+      const result = await this.waitForPromptWithLLMFallback(sessionId, timeout);
+      if (result.question) {
+        // Return LLM question without updating session state
+        return result;
+      }
+      const output = result.output!;
       
       const executionTime = Date.now() - startTime;
       const isError = PromptDetector.isErrorOutput(output, session.config.type);
@@ -325,6 +391,165 @@ export class SessionManager {
 
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private async waitForPromptWithLLMFallback(sessionId: string, timeout: number): Promise<CommandResult> {
+    try {
+      const output = await this.waitForPrompt(sessionId, timeout);
+      return {
+        success: true,
+        output,
+        executionTime: 0
+      };
+    } catch (error) {
+      // Timeout occurred - ask LLM for guidance
+      const rawOutput = this.outputBuffers.get(sessionId) || '';
+      return this.createLLMTimeoutQuestion(sessionId, rawOutput, error as Error);
+    }
+  }
+
+  private createLLMTimeoutQuestion(sessionId: string, rawOutput: string, error: Error): CommandResult {
+    const question = `Session timed out. Here's the raw output - please analyze and respond:
+
+Raw output:
+"""
+${rawOutput}
+"""
+
+Timeout error: ${error.message}
+
+Please respond with one of:
+- READY:{pattern} - if you see a working prompt, specify the pattern
+- SEND:{command} - if a command should be sent (e.g., \\n for Enter, \\x03 for Ctrl+C)
+- WAIT:{seconds} - if we should wait longer (specify number of seconds)
+- FAILED:{reason} - if this should be considered a failure
+
+What should I do?`;
+
+    return {
+      success: false,
+      output: '',
+      error: 'Timeout - LLM guidance needed',
+      executionTime: 0,
+      question,
+      questionType: 'timeout_analysis',
+      context: { sessionId, rawOutput },
+      canContinue: true
+    };
+  }
+
+  private async handleLLMGuidance(sessionId: string, response: string): Promise<CommandResult> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const guidance = this.parseLLMResponse(response);
+    
+    switch (guidance.action) {
+      case 'ready':
+        // LLM says the session is ready with detected pattern
+        session.status = 'ready';
+        session.lastActivity = new Date();
+        this.log(`[DEBUG ${sessionId}] LLM declared session ready with pattern: ${guidance.payload?.pattern}`);
+        return {
+          success: true,
+          output: this.outputBuffers.get(sessionId) || '',
+          executionTime: 0
+        };
+
+      case 'send':
+        // Send the command suggested by LLM
+        const command = guidance.payload?.command || '';
+        this.log(`[DEBUG ${sessionId}] LLM suggested sending command: ${JSON.stringify(command)}`);
+        session.process!.write(command);
+        
+        // Wait for response and potentially ask LLM again
+        try {
+          const output = await this.waitForPrompt(sessionId, 10000);
+          session.status = 'ready';
+          return {
+            success: true,
+            output,
+            executionTime: 0
+          };
+        } catch (error) {
+          // Still having issues, ask LLM again
+          const newOutput = this.outputBuffers.get(sessionId) || '';
+          return this.createLLMTimeoutQuestion(sessionId, newOutput, error as Error);
+        }
+
+      case 'wait':
+        // Wait for specified duration then retry
+        const seconds = guidance.payload?.seconds || 3;
+        this.log(`[DEBUG ${sessionId}] LLM suggested waiting ${seconds} seconds`);
+        
+        await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+        
+        try {
+          const output = await this.waitForPrompt(sessionId, 10000);
+          session.status = 'ready';
+          return {
+            success: true,
+            output,
+            executionTime: seconds * 1000
+          };
+        } catch (error) {
+          // Still timing out after wait, ask LLM again
+          const newOutput = this.outputBuffers.get(sessionId) || '';
+          return this.createLLMTimeoutQuestion(sessionId, newOutput, error as Error);
+        }
+
+      case 'failed':
+        // LLM says this should be considered a failure
+        const reason = guidance.payload?.reason || 'LLM determined session cannot be recovered';
+        session.status = 'error';
+        session.lastError = reason;
+        return {
+          success: false,
+          output: '',
+          error: reason,
+          executionTime: 0
+        };
+
+      default:
+        return {
+          success: false,
+          output: '',
+          error: `Unknown LLM guidance action: ${response}`,
+          executionTime: 0
+        };
+    }
+  }
+
+  private parseLLMResponse(response: string): LLMGuidance {
+    const trimmed = response.trim();
+    
+    if (trimmed.startsWith('READY:')) {
+      const pattern = trimmed.substring(6);
+      return { action: 'ready', payload: { pattern } };
+    }
+    
+    if (trimmed.startsWith('SEND:')) {
+      const command = trimmed.substring(5);
+      return { action: 'send', payload: { command } };
+    }
+    
+    if (trimmed.startsWith('WAIT:')) {
+      const seconds = parseInt(trimmed.substring(5)) || 3;
+      return { action: 'wait', payload: { seconds } };
+    }
+    
+    if (trimmed.startsWith('FAILED:')) {
+      const reason = trimmed.substring(7);
+      return { action: 'failed', payload: { reason } };
+    }
+    
+    // Default fallback
+    return { 
+      action: 'failed', 
+      payload: { reason: `Could not parse LLM response: ${response}` }
+    };
   }
 }
 

@@ -39,11 +39,17 @@ const CreateSessionSchema = z.object({
 const ExecuteCommandSchema = z.object({
   sessionId: z.string().describe("Session ID"),
   command: z.string().describe("Command to execute"),
-  timeout: z.number().optional().describe("Timeout in milliseconds (default: 30000)")
+  timeout: z.number().optional().describe("Timeout in milliseconds (default: 30000)"),
+  llmResponse: z.string().optional().describe("LLM response to previous question (e.g., READY:pattern, SEND:command, WAIT:seconds, FAILED:reason)")
 });
 
 const SessionIdSchema = z.object({
   sessionId: z.string().describe("Session ID")
+});
+
+const AnswerSessionQuestionSchema = z.object({
+  sessionId: z.string().describe("Session ID"),
+  answer: z.string().describe("Answer to the session question (e.g., READY:❯, SEND:\\n, WAIT:3, FAILED:reason)")
 });
 
 // Handle list tools request
@@ -79,6 +85,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "list_repl_configurations",
         description: "List all available predefined REPL configurations",
         inputSchema: zodToJsonSchema(z.object({}))
+      },
+      {
+        name: "answer_session_question",
+        description: "Answer a question from session creation or command execution",
+        inputSchema: zodToJsonSchema(AnswerSessionQuestionSchema)
       }
     ]
   };
@@ -124,17 +135,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const sessionId = await sessionManager.createSession(config);
+        const result = await sessionManager.createSession(config);
         
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify({
-                success: true,
-                sessionId,
+                ...result,
                 config: config.name,
-                message: `REPL session created successfully`
+                debugLogs: sessionManager.getDebugLogs()
               }, null, 2)
             }
           ]
@@ -143,9 +153,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "execute_repl_command": {
         const params = ExecuteCommandSchema.parse(args);
-        const { sessionId, command, timeout } = params;
+        const { sessionId, command, timeout, llmResponse } = params;
 
-        const result = await sessionManager.executeCommand(sessionId, command, timeout);
+        const result = await sessionManager.executeCommand(sessionId, command, timeout, llmResponse);
         
         return {
           content: [
@@ -155,7 +165,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 success: result.success,
                 output: result.output,
                 error: result.error,
-                executionTime: result.executionTime
+                executionTime: result.executionTime,
+                // LLM assistance fields
+                question: result.question,
+                questionType: result.questionType,
+                context: result.context,
+                canContinue: result.canContinue
               }, null, 2)
             }
           ]
@@ -268,6 +283,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 success: true,
                 configurations: configDetails,
                 debugLogs: sessionManager.getDebugLogs() // Include debug logs
+              }, null, 2)
+            }
+          ]
+        };
+      }
+
+      case "answer_session_question": {
+        const params = AnswerSessionQuestionSchema.parse(args);
+        const { sessionId, answer } = params;
+
+        // Use the existing executeCommand with llmResponse to handle the answer
+        const result = await sessionManager.executeCommand(sessionId, "", 30000, answer);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                ...result,
+                debugLogs: sessionManager.getDebugLogs()
               }, null, 2)
             }
           ]

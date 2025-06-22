@@ -30,6 +30,36 @@ export interface CommandResult {
   output: string;
   error?: string;
   executionTime: number;
+  // LLM assistance fields
+  question?: string;
+  questionType?: 'timeout_analysis' | 'prompt_detection' | 'error_recovery';
+  context?: any;
+  canContinue?: boolean;
+}
+
+export interface SessionCreationResult {
+  success: boolean;
+  sessionId?: string;
+  error?: string;
+  // LLM assistance fields for session creation
+  question?: string;
+  questionType?: 'session_timeout' | 'prompt_detection';
+  context?: {
+    sessionId: string;
+    rawOutput: string;
+    timeoutError: string;
+  };
+  canContinue?: boolean;
+}
+
+export interface LLMGuidance {
+  action: 'ready' | 'send' | 'wait' | 'failed';
+  payload?: {
+    pattern?: string;
+    command?: string;
+    seconds?: number;
+    reason?: string;
+  };
 }
 
 export interface PromptInfo {
