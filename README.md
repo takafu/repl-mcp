@@ -1,14 +1,22 @@
 # REPL MCP Server
 
-A universal REPL session manager MCP server that provides tools for creating and managing interactive shell sessions with various REPLs including pry, irb, python, and node.
+A universal REPL session manager MCP server that provides tools for creating and managing interactive shell sessions with various REPLs and shells. Features advanced LLM-assisted prompt detection for complex shell environments.
 
 ## Features
 
-- **Multiple REPL Support**: pry, irb, python, and node
+### Core Features
+- **Multiple REPL Support**: Python, IPython, Node.js, Ruby (pry, irb), and shell environments (bash, zsh)
 - **Session Management**: Create, manage, and destroy multiple concurrent REPL sessions
 - **Customizable Setup**: Configure shell type, setup commands, and environment variables
 - **Cross-Platform**: Works on Windows, macOS, and Linux
-- **Error Handling**: Proper error detection and reporting
+- **Error Handling**: Comprehensive error detection and reporting
+
+### 🤖 LLM-Assisted Features
+- **Smart Prompt Detection**: Automatically detects complex shell prompts using LLM assistance
+- **Session Learning**: Learns custom prompt patterns during session lifetime for improved performance
+- **Timeout Recovery**: When standard detection fails, LLM analyzes output and provides guidance
+- **Adaptive Responses**: Supports READY, SEND, WAIT, and FAILED response patterns for flexible problem solving
+- **Oh My Zsh Support**: Seamlessly handles custom prompts like `❯` and `∙` through intelligent analysis
 
 ## Installation
 
@@ -75,13 +83,14 @@ Or with custom config:
 
 ### `execute_repl_command`
 
-Execute a command in an existing REPL session.
+Execute a command in an existing REPL session with optional LLM guidance support.
 
 **Parameters:**
 
 - `sessionId`: The session ID
 - `command`: Command to execute
-- `timeout` (optional): Timeout in milliseconds
+- `timeout` (optional): Timeout in milliseconds (default: 30000)
+- `llmResponse` (optional): LLM guidance response for timeout recovery
 
 **Example:**
 
@@ -89,6 +98,29 @@ Execute a command in an existing REPL session.
 {
   "sessionId": "session_1234567890_abc123",
   "command": "puts 'Hello, World!'"
+}
+```
+
+**With LLM Guidance:**
+
+```json
+{
+  "sessionId": "session_1234567890_abc123",
+  "command": "",
+  "llmResponse": "READY:❯"
+}
+```
+
+**Response with LLM Question:**
+
+When timeout occurs, the response may include an LLM question:
+
+```json
+{
+  "success": false,
+  "question": "Session timed out. Raw output: '❯ '. What should I do?",
+  "questionType": "timeout_analysis",
+  "canContinue": true
 }
 ```
 
@@ -116,17 +148,79 @@ Destroy an existing REPL session.
 
 List all available predefined REPL configurations.
 
+### `answer_session_question`
+
+Answer a question from session creation or command execution during LLM-assisted recovery.
+
+**Parameters:**
+
+- `sessionId`: The session ID
+- `answer`: LLM guidance response (READY:pattern, SEND:command, WAIT:seconds, FAILED:reason)
+
+**Example:**
+
+```json
+{
+  "sessionId": "session_1234567890_abc123",
+  "answer": "READY:∙"
+}
+```
+
 ## Predefined Configurations
 
-- **pry**: Basic Pry REPL
-- **irb**: Basic IRB REPL
-- **ipython**: IPython REPL
-- **node**: Node.js REPL
-- **python**: Basic Python REPL
+### REPL Configurations
+- **pry**: Ruby Pry REPL with advanced debugging features
+- **irb**: Ruby IRB REPL with standard functionality
+- **ipython**: Enhanced Python REPL with rich features
+- **node**: Node.js JavaScript REPL
+- **python**: Standard Python REPL
+
+### Shell Configurations
+- **bash**: Bash shell environment
+- **zsh**: Zsh shell environment (with Oh My Zsh support)
+
+### Advanced Configurations
+- **rails_console**: Rails console with bundle exec
+- **rails_console_production**: Production Rails console
+
+## LLM-Assisted Prompt Detection
+
+### How It Works
+
+When a session times out due to unrecognized prompts, the server automatically:
+
+1. **Captures Raw Output**: Collects the full terminal output including ANSI codes
+2. **Asks LLM for Analysis**: Presents the output to an LLM for interpretation
+3. **Receives Guidance**: LLM responds with one of four action types:
+   - `READY:pattern` - Prompt detected, specify the pattern
+   - `SEND:command` - Send a specific command (e.g., `\n` for Enter)
+   - `WAIT:seconds` - Wait longer for command completion
+   - `FAILED:reason` - Mark as failure with explanation
+
+### Session Learning
+
+Once an LLM identifies a prompt pattern, the session remembers it for future commands:
+
+```
+First Command:  timeout → LLM consultation → READY:∙ → success
+Second Command: immediate success (learned pattern ∙)
+Third Command:  immediate success (learned pattern ∙)
+```
+
+### Supported LLM Responses
+
+- **READY:❯** - Common for Oh My Zsh triangular prompts
+- **READY:∙** - For bullet-style prompts
+- **SEND:\n** - Send Enter key
+- **SEND:\x03** - Send Ctrl+C
+- **WAIT:3** - Wait 3 more seconds
+- **FAILED:Complex nested environment** - Give up with reason
 
 ## Usage Examples
 
-### Create a Python Session
+### Basic REPL Usage
+
+#### Create a Python Session
 
 ```json
 {
@@ -137,7 +231,7 @@ List all available predefined REPL configurations.
 }
 ```
 
-### Execute Ruby Code
+#### Execute Ruby Code
 
 ```json
 {
@@ -149,26 +243,126 @@ List all available predefined REPL configurations.
 }
 ```
 
+### LLM-Assisted Recovery Workflow
+
+#### 1. Create Oh My Zsh Session
+
+```json
+{
+  "tool": "create_repl_session",
+  "arguments": {
+    "configName": "zsh"
+  }
+}
+```
+
+#### 2. Execute Command (May Timeout)
+
+```json
+{
+  "tool": "execute_repl_command",
+  "arguments": {
+    "sessionId": "session_1234567890_abc123",
+    "command": "echo 'Hello Oh My Zsh'"
+  }
+}
+```
+
+**Response (Timeout with LLM Question):**
+
+```json
+{
+  "success": false,
+  "question": "Session timed out. Raw output: '❯ '. What should I do?",
+  "questionType": "timeout_analysis",
+  "canContinue": true
+}
+```
+
+#### 3. Provide LLM Guidance
+
+```json
+{
+  "tool": "answer_session_question",
+  "arguments": {
+    "sessionId": "session_1234567890_abc123",
+    "answer": "READY:❯"
+  }
+}
+```
+
+#### 4. Future Commands Work Automatically
+
+```json
+{
+  "tool": "execute_repl_command",
+  "arguments": {
+    "sessionId": "session_1234567890_abc123",
+    "command": "pwd"
+  }
+}
+```
+
+*No timeout - pattern learned and detected automatically!*
+
 ## Session Management
 
 Each session maintains:
 
-- Unique session ID
-- Configuration details
-- Current status (initializing, ready, executing, error, terminated)
-- Command history
-- Last output and errors
-- Creation and last activity timestamps
+- **Unique session ID**: For session identification and management
+- **Configuration details**: REPL type, shell, setup commands, etc.
+- **Current status**: initializing, ready, executing, error, terminated
+- **Command history**: Record of executed commands
+- **Last output and errors**: Most recent execution results
+- **Creation and activity timestamps**: Session lifecycle tracking
+- **Learned prompt patterns**: Custom patterns discovered through LLM assistance
+
+### Session Lifecycle
+
+1. **Initialization**: Session created with specified configuration
+2. **Ready**: Session prepared for command execution
+3. **Executing**: Command being processed
+4. **Learning**: LLM assistance for prompt detection (when needed)
+5. **Optimized**: Learned patterns enable fast execution
 
 ## Error Handling
 
-The server provides comprehensive error handling:
+The server provides comprehensive error handling with intelligent recovery:
 
-- Session creation failures
-- Command execution timeouts
-- REPL crashes and recovery
-- Invalid command detection
-- Proper error reporting with context
+### Traditional Error Handling
+- **Session creation failures**: Clear error messages with diagnostic information
+- **Command execution timeouts**: Graceful timeout handling with retry options
+- **REPL crashes and recovery**: Automatic detection and session state management
+- **Invalid command detection**: Input validation and error reporting
+
+### LLM-Enhanced Recovery
+- **Prompt detection failures**: Automatic LLM consultation for unknown prompts
+- **Adaptive timeout handling**: Smart waiting based on command complexity
+- **Custom environment support**: Dynamic learning for non-standard shells
+- **Contextual error analysis**: Rich error information for troubleshooting
+
+### Error Response Format
+
+**Standard Error:**
+```json
+{
+  "success": false,
+  "error": "Session not found",
+  "executionTime": 0
+}
+```
+
+**LLM-Assisted Error:**
+```json
+{
+  "success": false,
+  "error": "Timeout - LLM guidance needed",
+  "question": "Session timed out. What should I do?",
+  "questionType": "timeout_analysis",
+  "canContinue": true,
+  "context": { "sessionId": "...", "rawOutput": "..." }
+}
+```
 
 ## Development
 
@@ -202,8 +396,51 @@ This will start TypeScript in watch mode for development.
 
 ### Common Issues
 
+#### Traditional Issues
 1. **Session creation fails**: Check that the required REPL command is installed and accessible
-2. **Commands timeout**: Increase timeout value or check REPL responsiveness
+2. **Commands timeout consistently**: Increase timeout value or check REPL responsiveness
+3. **REPL not found**: Ensure the REPL executable is in your PATH
+
+#### LLM-Assisted Issues
+1. **LLM guidance not working**: Ensure you're using the `answer_session_question` tool with proper response format
+2. **Pattern not learned**: Check that the LLM response follows the `READY:pattern` format exactly
+3. **Timeout questions ignored**: Use `execute_repl_command` with `llmResponse` parameter to provide guidance
+
+### Best Practices
+
+#### For Complex Shells
+- **Oh My Zsh**: Let LLM learn custom prompts automatically on first timeout
+- **Custom PS1**: Use `READY:pattern` to teach the system your prompt
+- **Nested environments**: Use `WAIT:seconds` for environments that need time to settle
+
+#### Performance Optimization
+- **First session**: May require LLM assistance for prompt learning
+- **Subsequent commands**: Will be fast due to learned patterns
+- **Multiple sessions**: Each session learns independently
+
+### Debug Information
+
+Enable detailed debugging by checking the `debugLogs` field in responses:
+
+```json
+{
+  "success": true,
+  "output": "...",
+  "debugLogs": [
+    "2025-06-22T15:31:15.504Z: [DEBUG session_xxx] Prompt detected: true",
+    "2025-06-22T15:31:15.505Z: [DEBUG session_xxx] Learned new prompt pattern: '∙'"
+  ]
+}
+```
+
+## Contributing
+
+Contributions are welcome! The LLM-assisted features make it easy to add support for new shell environments and REPL types. When contributing:
+
+1. **Test with different shells**: Ensure compatibility across bash, zsh, and other environments
+2. **Consider prompt variations**: Test with custom prompts and themes
+3. **Update configurations**: Add new predefined configs for common setups
+4. **Document LLM patterns**: Share successful prompt patterns for others
 
 ## License
 
