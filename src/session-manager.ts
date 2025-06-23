@@ -365,14 +365,23 @@ Please respond with one of:
       throw new Error('Session process not found');
     }
 
+    this.log(`[DEBUG ${sessionId}] Executing setup command: ${command}`, sessionId);
+
     // Clear buffer
     this.outputBuffers.set(sessionId, '');
     
     // Send command
     session.process!.write(command + '\r\n');
     
-    // Wait for command to complete (simple implementation)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait for command to complete with proper prompt detection
+    try {
+      await this.waitForPrompt(sessionId, 5000);
+      this.log(`[DEBUG ${sessionId}] Setup command completed: ${command}`, sessionId);
+    } catch (error) {
+      this.log(`[DEBUG ${sessionId}] Setup command timeout, continuing: ${command}`, sessionId);
+      // Don't fail the entire session for setup command timeouts
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
 
   private async startREPL(sessionId: string, replCommand: string): Promise<void> {
