@@ -96,8 +96,20 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'Zsh Shell',
     type: 'custom',
     shell: 'zsh',
-    setupCommands: [],
+    setupCommands: [
+      'export STARSHIP_CONFIG=/dev/null',
+      'unset STARSHIP_SHELL',
+      'export PS1=\'%% \'',
+      'export PROMPT=\'%% \'',
+      'unset RPROMPT',
+      'unset RPS1',
+      'unset precmd_functions',
+      'unset preexec_functions'
+    ],
     replCommand: '',
+    environment: {
+      'STARSHIP_CONFIG': '/dev/null'
+    },
     timeout: 30000
   }
 };
