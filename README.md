@@ -1,22 +1,18 @@
 # REPL MCP Server
 
-A universal REPL session manager MCP server that provides tools for creating and managing interactive shell sessions with various REPLs and shells. Features advanced LLM-assisted prompt detection for complex shell environments.
+A simple MCP server for managing REPL sessions. Provides basic tools to create and execute commands in various REPLs and shells.
 
 ## Features
 
 ### Core Features
-- **Multiple REPL Support**: Python, IPython, Node.js, Ruby (pry, irb), and shell environments (bash, zsh)
-- **Session Management**: Create, manage, and destroy multiple concurrent REPL sessions
-- **Customizable Setup**: Configure shell type, setup commands, and environment variables
+- **Multiple REPL Support**: Python, IPython, Node.js, Ruby (pry, irb), bash, zsh
+- **Session Management**: Create, execute commands, and destroy REPL sessions
+- **Customizable Setup**: Configure setup commands and environment variables
 - **Cross-Platform**: Works on Windows, macOS, and Linux
-- **Error Handling**: Comprehensive error detection and reporting
 
-### 🤖 LLM-Assisted Features
-- **Smart Prompt Detection**: Automatically detects complex shell prompts using LLM assistance
-- **Session Learning**: Learns custom prompt patterns during session lifetime for improved performance
-- **Timeout Recovery**: When standard detection fails, LLM analyzes output and provides guidance
-- **Adaptive Responses**: Supports READY, SEND, WAIT, and FAILED response patterns for flexible problem solving
-- **Oh My Zsh Support**: Seamlessly handles custom prompts like `❯` and `∙` through intelligent analysis
+### Additional Features
+- **Timeout Recovery**: LLM assistance when commands timeout
+- **Session Learning**: Remembers prompt patterns within sessions
 
 ## Installation
 
@@ -172,15 +168,15 @@ Answer a question from session creation or command execution during LLM-assisted
 - **rails_console**: Rails console with bundle exec
 - **rails_console_production**: Production Rails console
 
-## LLM-Assisted Prompt Detection
+## LLM-Assisted Recovery
 
 ### How It Works
 
-When a session times out due to unrecognized prompts, the server automatically:
+When command execution times out, the server can request LLM assistance:
 
-1. **Captures Raw Output**: Collects the full terminal output including ANSI codes
-2. **Asks LLM for Analysis**: Presents the output to an LLM for interpretation
-3. **Receives Guidance**: LLM responds with one of four action types:
+1. **Captures Raw Output**: Collects terminal output for analysis
+2. **LLM Analysis**: LLM examines the output and provides guidance
+3. **Response Types**: Four response patterns for different situations:
    - `READY:pattern` - Prompt detected, specify the pattern
    - `SEND:command` - Send a specific command (e.g., `\n` for Enter)
    - `WAIT:seconds` - Wait longer for command completion
@@ -188,22 +184,7 @@ When a session times out due to unrecognized prompts, the server automatically:
 
 ### Session Learning
 
-Once an LLM identifies a prompt pattern, the session remembers it for future commands:
-
-```
-First Command:  timeout → LLM consultation → READY:∙ → success
-Second Command: immediate success (learned pattern ∙)
-Third Command:  immediate success (learned pattern ∙)
-```
-
-### Supported LLM Responses
-
-- **READY:❯** - Common for Oh My Zsh triangular prompts
-- **READY:∙** - For bullet-style prompts
-- **SEND:\n** - Send Enter key
-- **SEND:\x03** - Send Ctrl+C
-- **WAIT:3** - Wait 3 more seconds
-- **FAILED:Complex nested environment** - Give up with reason
+Patterns identified by LLM are remembered for the session duration to improve subsequent command performance.
 
 ## Usage Examples
 
@@ -232,43 +213,9 @@ Third Command:  immediate success (learned pattern ∙)
 }
 ```
 
-### LLM-Assisted Recovery Workflow
+### LLM-Assisted Recovery Example
 
-#### 1. Create Oh My Zsh Session
-
-```json
-{
-  "tool": "create_repl_session",
-  "arguments": {
-    "configName": "zsh"
-  }
-}
-```
-
-#### 2. Execute Command (May Timeout)
-
-```json
-{
-  "tool": "execute_repl_command",
-  "arguments": {
-    "sessionId": "session_1234567890_abc123",
-    "command": "echo 'Hello Oh My Zsh'"
-  }
-}
-```
-
-**Response (Timeout with LLM Question):**
-
-```json
-{
-  "success": false,
-  "question": "Session timed out. Raw output: '❯ '. What should I do?",
-  "questionType": "timeout_analysis",
-  "canContinue": true
-}
-```
-
-#### 3. Provide LLM Guidance
+When a command times out, you can use LLM assistance:
 
 ```json
 {
@@ -280,19 +227,7 @@ Third Command:  immediate success (learned pattern ∙)
 }
 ```
 
-#### 4. Future Commands Work Automatically
-
-```json
-{
-  "tool": "execute_repl_command",
-  "arguments": {
-    "sessionId": "session_1234567890_abc123",
-    "command": "pwd"
-  }
-}
-```
-
-*No timeout - pattern learned and detected automatically!*
+The session will remember this pattern for future commands.
 
 ## Session Management
 
@@ -398,13 +333,11 @@ This will start TypeScript in watch mode for development.
 ### Best Practices
 
 #### For Complex Shells
-- **Oh My Zsh**: Let LLM learn custom prompts automatically on first timeout
-- **Custom PS1**: Use `READY:pattern` to teach the system your prompt
+- **Custom prompts**: Use `READY:pattern` to teach the system your prompt when timeouts occur
 - **Nested environments**: Use `WAIT:seconds` for environments that need time to settle
 
-#### Performance Optimization
-- **First session**: May require LLM assistance for prompt learning
-- **Subsequent commands**: Will be fast due to learned patterns
+#### Performance Tips
+- **Session learning**: Patterns learned during LLM assistance improve subsequent commands
 - **Multiple sessions**: Each session learns independently
 
 ### Debug Information
