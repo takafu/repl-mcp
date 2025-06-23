@@ -5,12 +5,14 @@ A simple MCP server for managing REPL sessions. Provides basic tools to create a
 ## Features
 
 ### Core Features
+
 - **Multiple REPL Support**: Python, IPython, Node.js, Ruby (pry, irb), bash, zsh
 - **Session Management**: Create, execute commands, and destroy REPL sessions
 - **Customizable Setup**: Configure setup commands and environment variables
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
 ### Additional Features
+
 - **Timeout Recovery**: LLM assistance when commands timeout
 - **Session Learning**: Remembers prompt patterns within sessions
 
@@ -154,6 +156,7 @@ Answer a question from session creation or command execution during LLM-assisted
 ## Predefined Configurations
 
 ### REPL Configurations
+
 - **pry**: Ruby Pry REPL with advanced debugging features
 - **irb**: Ruby IRB REPL with standard functionality
 - **ipython**: Enhanced Python REPL with rich features
@@ -161,10 +164,12 @@ Answer a question from session creation or command execution during LLM-assisted
 - **python**: Standard Python REPL
 
 ### Shell Configurations
+
 - **bash**: Bash shell environment
 - **zsh**: Zsh shell environment (with Oh My Zsh support)
 
 ### Advanced Configurations
+
 - **rails_console**: Rails console with bundle exec
 - **rails_console_production**: Production Rails console
 
@@ -254,12 +259,14 @@ Each session maintains:
 The server provides comprehensive error handling with intelligent recovery:
 
 ### Traditional Error Handling
+
 - **Session creation failures**: Clear error messages with diagnostic information
 - **Command execution timeouts**: Graceful timeout handling with retry options
 - **REPL crashes and recovery**: Automatic detection and session state management
 - **Invalid command detection**: Input validation and error reporting
 
 ### LLM-Enhanced Recovery
+
 - **Prompt detection failures**: Automatic LLM consultation for unknown prompts
 - **Adaptive timeout handling**: Smart waiting based on command complexity
 - **Custom environment support**: Dynamic learning for non-standard shells
@@ -268,6 +275,7 @@ The server provides comprehensive error handling with intelligent recovery:
 ### Error Response Format
 
 **Standard Error:**
+
 ```json
 {
   "success": false,
@@ -277,6 +285,7 @@ The server provides comprehensive error handling with intelligent recovery:
 ```
 
 **LLM-Assisted Error:**
+
 ```json
 {
   "success": false,
@@ -321,11 +330,13 @@ This will start TypeScript in watch mode for development.
 ### Common Issues
 
 #### Traditional Issues
+
 1. **Session creation fails**: Check that the required REPL command is installed and accessible
 2. **Commands timeout consistently**: Increase timeout value or check REPL responsiveness
 3. **REPL not found**: Ensure the REPL executable is in your PATH
 
 #### LLM-Assisted Issues
+
 1. **LLM guidance not working**: Ensure you're using the `answer_session_question` tool with proper response format
 2. **Pattern not learned**: Check that the LLM response follows the `READY:pattern` format exactly
 3. **Timeout questions ignored**: Use `answer_session_question` tool to provide LLM guidance
@@ -333,10 +344,12 @@ This will start TypeScript in watch mode for development.
 ### Best Practices
 
 #### For Complex Shells
+
 - **Custom prompts**: Use `READY:pattern` to teach the system your prompt when timeouts occur
 - **Nested environments**: Use `WAIT:seconds` for environments that need time to settle
 
 #### Performance Tips
+
 - **Session learning**: Patterns learned during LLM assistance improve subsequent commands
 - **Multiple sessions**: Each session learns independently
 
