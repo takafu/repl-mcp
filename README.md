@@ -2,6 +2,10 @@
 
 A simple MCP server for managing REPL sessions. Provides basic tools to create and execute commands in various REPLs and shells.
 
+## Motivation
+
+Working with remote REPLs (like Rails console on production servers) often forces you to cram complex operations into single commands since losing connection means losing your session state. This tool enables persistent REPL sessions that survive individual command executions, allowing you to work naturally with interactive environments through AI agents.
+
 ## Features
 
 ### Core Features
