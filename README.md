@@ -172,6 +172,8 @@ Answer a question from session creation or command execution during LLM-assisted
 
 ## Predefined Configurations
 
+*Note: Each REPL tool must be installed and available in your PATH.*
+
 ### REPL Configurations
 
 - **pry**: Ruby Pry REPL with advanced debugging features
