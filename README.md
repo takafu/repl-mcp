@@ -18,7 +18,7 @@ A simple MCP server for managing REPL sessions. Provides basic tools to create a
 
 ## Installation
 
-[![Install in VS Code](https://img.shields.io/badge/Install%20in%20VS%20Code-blue?logo=visual-studio-code)](vscode:mcp/install?{"name":"repl-mcp","command":"npx","args":["repl-mcp@latest"]})
+[![npm version](https://img.shields.io/npm/v/repl-mcp)](https://www.npmjs.com/package/repl-mcp)
 
 ### Option 1: NPM (Recommended)
 
