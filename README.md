@@ -24,13 +24,15 @@ Working with remote REPLs (like Rails console on production servers) often force
 
 [![npm version](https://img.shields.io/npm/v/repl-mcp)](https://www.npmjs.com/package/repl-mcp)
 
-### Option 1: NPM (Recommended)
+### Claude Code
 
 ```bash
-npm install -g repl-mcp
+claude mcp add repl-mcp npx repl-mcp@latest
 ```
 
-Then add to your MCP settings:
+### Manual MCP Configuration
+
+Add to your MCP settings file:
 
 ```json
 {
@@ -43,7 +45,7 @@ Then add to your MCP settings:
 }
 ```
 
-### Option 2: From Source
+### From Source
 
 1. Clone this repository
 2. Install dependencies: `npm install`
