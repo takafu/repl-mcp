@@ -50,7 +50,7 @@ const SessionIdSchema = z.object({
 
 const AnswerSessionQuestionSchema = z.object({
   sessionId: z.string().describe("Session ID"),
-  answer: z.string().describe("Answer to the session question (e.g., READY:❯, SEND:\\n, WAIT:3, FAILED:reason)"),
+  answer: z.string().describe("LLM guidance response. Use READY:pattern to specify detected prompt (e.g. 'READY:❯' means ❯ is the prompt), SEND:command to send input (SEND:\\n for Enter, SEND:\\x03 for Ctrl+C), WAIT:seconds to wait longer (e.g. WAIT:10), or FAILED:reason to mark as failed"),
   debug: z.boolean().optional().describe("Include debug logs in response (default: false)")
 });
 
@@ -98,7 +98,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "answer_session_question",
-        description: "Answer a question from session creation or command execution",
+        description: "Answer a question from session creation or command execution during LLM-assisted recovery. Use one of these response formats: READY:pattern (specify detected prompt like 'READY:❯'), SEND:command (send input like 'SEND:\\n' for Enter), WAIT:seconds (wait longer like 'WAIT:10'), FAILED:reason (mark as failed with explanation)",
         inputSchema: zodToJsonSchema(AnswerSessionQuestionSchema)
       }
     ]

@@ -144,6 +144,12 @@ When timeout occurs, the response may include an LLM question:
 }
 ```
 
+**How to respond:** Use `answer_session_question` with one of these formats:
+- `READY:❯` - The prompt "❯" is ready for commands
+- `SEND:\n` - Send Enter key (use `\x03` for Ctrl+C)
+- `WAIT:5` - Wait 5 more seconds for completion
+- `FAILED:reason` - Mark the session as failed
+
 ### `list_repl_sessions`
 
 List all active REPL sessions.
@@ -175,7 +181,11 @@ Answer a question from session creation or command execution during LLM-assisted
 **Parameters:**
 
 - `sessionId`: The session ID
-- `answer`: LLM guidance response (READY:pattern, SEND:command, WAIT:seconds, FAILED:reason)
+- `answer`: LLM guidance response in one of these formats:
+  - `READY:pattern` - Specify the detected prompt pattern (e.g., `READY:❯` means "❯" is the prompt)
+  - `SEND:command` - Send specific input (e.g., `SEND:\n` for Enter, `SEND:\x03` for Ctrl+C)
+  - `WAIT:seconds` - Wait longer for completion (e.g., `WAIT:10`)
+  - `FAILED:reason` - Mark session as failed with explanation
 
 **Example:**
 
