@@ -18,22 +18,33 @@ A simple MCP server for managing REPL sessions. Provides basic tools to create a
 
 ## Installation
 
-1. Clone or download this repository to your MCP servers directory
-2. Install dependencies:
+[![Install in VS Code](https://img.shields.io/badge/Install%20in%20VS%20Code-blue?logo=visual-studio-code)](vscode:mcp/install?{"name":"repl-mcp","command":"npx","args":["repl-mcp@latest"]})
 
-   ```bash
-   npm install
-   ```
+### Option 1: NPM (Recommended)
 
-3. Build the project:
+```bash
+npm install -g repl-mcp
+```
 
-   ```bash
-   npm run build
-   ```
+Then add to your MCP settings:
 
-## Configuration
+```json
+{
+  "mcpServers": {
+    "repl-mcp": {
+      "command": "npx",
+      "args": ["repl-mcp@latest"]
+    }
+  }
+}
+```
 
-Add the server to your MCP settings file (e.g., `mcp_settings.json`):
+### Option 2: From Source
+
+1. Clone this repository
+2. Install dependencies: `npm install`
+3. Build the project: `npm run build`
+4. Add to your MCP settings:
 
 ```json
 {
