@@ -21,7 +21,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/takafu/repl-mcp.git"
+    "url": "git+https://github.com/takafu/repl-mcp.git"
   },
   "homepage": "https://github.com/takafu/repl-mcp#readme",
   "bugs": {
@@ -39,6 +39,6 @@
     "typescript": "^5.3.0"
   },
   "bin": {
-    "repl-mcp": "./build/index.js"
+    "repl-mcp": "build/index.js"
   }
 }
