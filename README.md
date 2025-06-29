@@ -1,4 +1,4 @@
-# REPL MCP Server
+# repl-mcp
 
 A simple MCP server for managing REPL sessions. Provides basic tools to create and execute commands in various REPLs and shells.
 
