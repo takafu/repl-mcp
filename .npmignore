@@ -5,6 +5,8 @@ src/
 CLAUDE.md
 *.log
 mcp-debug.log
+bin/
+.github/
 
 # Git
 .git/
