@@ -109,6 +109,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
+  let attemptedSessionId: string | undefined;
+
   try {
     switch (name) {
       case "create_repl_session": {
@@ -146,6 +148,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const result = await sessionManager.createSession(config);
+        attemptedSessionId = result.sessionId;
         
         const response: any = {
           ...result,
@@ -368,7 +371,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           text: JSON.stringify({
             success: false,
             error: error instanceof Error ? error.message : String(error),
-            debugLogs: sessionManager.getDebugLogs() // Global logs for errors
+            debugLogs: attemptedSessionId 
+              ? sessionManager.getDebugLogs(attemptedSessionId)
+              : sessionManager.getDebugLogs() // Fallback to global logs only if no sessionId
           }, null, 2)
         }
       ],
