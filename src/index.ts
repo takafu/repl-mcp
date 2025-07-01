@@ -73,7 +73,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "execute_repl_command",
-        description: "Execute a command in an existing REPL session",
+        description: "Execute a command in an existing REPL session. ALWAYS show the command output to the user after execution. Decode ANSI escape codes if present and format the output for readability. For lengthy outputs, summarize key results while preserving important details.",
         inputSchema: zodToJsonSchema(ExecuteCommandSchema)
       },
       {
@@ -189,7 +189,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 question: result.question,
                 questionType: result.questionType,
                 context: result.context,
-                canContinue: result.canContinue
+                canContinue: result.canContinue,
+                // Hint for agent behavior
+                hint: result.success ? "Please show this command output to the user in a readable format" : undefined
               }, null, 2)
             }
           ]
