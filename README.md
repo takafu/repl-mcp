@@ -34,7 +34,7 @@ Click the button above or add to your `.vscode/mcp.json`:
   "servers": {
     "repl-mcp": {
       "command": "npx",
-      "args": ["repl-mcp@latest"]
+      "args": ["-y", "repl-mcp@latest"]
     }
   }
 }
@@ -43,7 +43,7 @@ Click the button above or add to your `.vscode/mcp.json`:
 ### Claude Code
 
 ```bash
-claude mcp add repl-mcp npx repl-mcp@latest
+claude mcp add repl-mcp -- npx -y repl-mcp@latest
 ```
 
 ### Manual MCP Configuration
@@ -55,7 +55,7 @@ Add to your MCP settings file:
   "mcpServers": {
     "repl-mcp": {
       "command": "npx",
-      "args": ["repl-mcp@latest"]
+      "args": ["-y", "repl-mcp@latest"]
     }
   }
 }
@@ -145,6 +145,7 @@ When timeout occurs, the response may include an LLM question:
 ```
 
 **How to respond:** Use `answer_session_question` with one of these formats:
+
 - `READY:❯` - The prompt "❯" is ready for commands
 - `SEND:\n` - Send Enter key (use `\x03` for Ctrl+C)
 - `WAIT:5` - Wait 5 more seconds for completion
