@@ -5,7 +5,7 @@ export interface REPLConfig {
   type: 'pry' | 'irb' | 'ipython' | 'node' | 'python' | 'custom' | 'cmd';
   shell: 'bash' | 'zsh' | 'cmd' | 'powershell' | 'cmd.exe';
   commands: string[];
-  workingDirectory?: string;
+  startingDirectory?: string;
   environment?: Record<string, string>;
   promptPattern?: string;
   timeout?: number;

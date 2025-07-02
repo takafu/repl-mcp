@@ -29,7 +29,7 @@ const CreateSessionSchema = z.object({
     type: z.enum(['pry', 'irb', 'ipython', 'node', 'python', 'custom']).describe("REPL type"),
     shell: z.enum(['bash', 'zsh', 'cmd', 'powershell']).describe("Shell type"),
     commands: z.array(z.string()).describe("Commands to execute in order. The last command should start the REPL."),
-    workingDirectory: z.string().optional().describe("Working directory"),
+    startingDirectory: z.string().optional().describe("Host directory where the shell process will start (must exist)"),
     environment: z.record(z.string()).optional().describe("Environment variables"),
     timeout: z.number().optional().describe("Command timeout in milliseconds")
   }).optional().describe("Custom configuration"),

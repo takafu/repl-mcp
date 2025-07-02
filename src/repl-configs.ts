@@ -117,7 +117,7 @@ export function createCustomConfig(
   name: string,
   shell: REPLConfig['shell'],
   commands: string[],
-  workingDirectory?: string,
+  startingDirectory?: string,
   environment?: Record<string, string>,
   promptPattern?: string,
   timeout?: number
@@ -127,7 +127,7 @@ export function createCustomConfig(
     type: 'custom', // Custom type for dynamically created configs
     shell,
     commands,
-    workingDirectory,
+    startingDirectory,
     environment,
     promptPattern,
     timeout

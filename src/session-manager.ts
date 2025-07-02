@@ -3,6 +3,8 @@ import * as nodePty from 'node-pty';
 import { REPLConfig, SessionState, CommandResult, LLMGuidance, SessionCreationResult } from './types.js';
 import { PromptDetector } from './prompt-detector.js';
 import * as os from 'os';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export class SessionManager {
   private sessions: Map<string, SessionState> = new Map();
@@ -122,7 +124,23 @@ export class SessionManager {
 
   public async createSession(config: REPLConfig): Promise<SessionCreationResult> {
     const sessionId = this.generateSessionId();
-    const workingDir = config.workingDirectory || process.cwd();
+    const startingDir = config.startingDirectory || process.cwd();
+
+    // Validate starting directory exists
+    try {
+      const stats = fs.statSync(startingDir);
+      if (!stats.isDirectory()) {
+        return {
+          success: false,
+          error: `Starting directory is not a directory: ${startingDir}`
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `Starting directory does not exist or is not accessible: ${startingDir}`
+      };
+    }
 
     this.log(`[DEBUG ${sessionId}] Starting session creation for ${config.type}`, sessionId);
 
@@ -130,7 +148,7 @@ export class SessionManager {
       id: sessionId,
       config,
       status: 'initializing',
-      currentDirectory: workingDir,
+      currentDirectory: startingDir,
       history: [],
       lastOutput: '',
       createdAt: new Date(),
@@ -144,7 +162,7 @@ export class SessionManager {
     try {
       // Create shell process
       this.log(`[DEBUG ${sessionId}] Creating shell process`, sessionId);
-      const shellProcess = this.createShellProcess(config, workingDir);
+      const shellProcess = this.createShellProcess(config, startingDir);
       sessionState.process = shellProcess;
 
       // Setup output handlers
@@ -325,7 +343,7 @@ Please respond with one of:
     return true;
   }
 
-  private createShellProcess(config: REPLConfig, workingDir: string): nodePty.IPty {
+  private createShellProcess(config: REPLConfig, startingDir: string): nodePty.IPty {
     const env = { ...process.env, ...config.environment };
     
     let shellCommand: string;
@@ -358,7 +376,7 @@ Please respond with one of:
       name: 'xterm-color',
       cols: 80,
       rows: 30,
-      cwd: workingDir,
+      cwd: startingDir,
       env: { ...env, TERM: 'xterm' } as { [key: string]: string }, // Cast to string dictionary
       encoding: 'utf8',
       // Enable ConPTY on Windows if build number is high enough
