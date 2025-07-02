@@ -252,14 +252,14 @@ Patterns identified by LLM are remembered for the session duration to improve su
 }
 ```
 
-#### Execute Ruby Code
+#### Execute Python Code
 
 ```json
 {
   "tool": "execute_repl_command",
   "arguments": {
     "sessionId": "session_1234567890_abc123",
-    "command": "User.count"
+    "command": "print('Hello from REPL!')"
   }
 }
 ```
