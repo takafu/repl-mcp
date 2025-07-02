@@ -11,6 +11,7 @@ export class SessionManager {
   private globalLogs: string[] = []; // Global logs (server events)
   private readonly MAX_LOGS_PER_SESSION = 50; // Limit logs per session
   private readonly MAX_GLOBAL_LOGS = 100; // Limit global logs
+  private readonly MAX_OUTPUT_SIZE = 50 * 1024; // 50KB limit for command output
 
   private log(message: string, sessionId?: string) {
     const timestamp = new Date().toISOString();
@@ -318,7 +319,17 @@ Please respond with one of:
   private setupOutputHandlers(sessionId: string, process: nodePty.IPty): void {
     const appendOutput = (data: string) => {
       const currentBuffer = this.outputBuffers.get(sessionId) || '';
-      this.outputBuffers.set(sessionId, currentBuffer + data);
+      let newBuffer = currentBuffer + data;
+      
+      // Truncate if exceeds maximum size, keeping the tail (most recent output)
+      if (newBuffer.length > this.MAX_OUTPUT_SIZE) {
+        const truncatedLength = newBuffer.length;
+        const keepSize = Math.floor(this.MAX_OUTPUT_SIZE * 0.8); // Keep 80% of max size
+        newBuffer = '[...output truncated. Total length: ' + truncatedLength + ' chars, showing last ' + keepSize + ' chars...]\n' + 
+                   newBuffer.slice(-keepSize);
+      }
+      
+      this.outputBuffers.set(sessionId, newBuffer);
     };
 
     // node-pty uses onData method instead of 'data' event
@@ -449,7 +460,7 @@ Please respond with one of:
   }
 
   private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 
   private async waitForPromptWithLLMFallback(sessionId: string, timeout: number): Promise<CommandResult> {
