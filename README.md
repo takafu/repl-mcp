@@ -106,8 +106,8 @@ Or with custom config:
     "name": "Custom Ruby Session",
     "type": "pry",
     "shell": "bash",
-    "setupCommands": ["cd /path/to/project", "bundle install"],
-    "replCommand": "bundle exec pry"
+    "commands": ["cd /path/to/project", "bundle install", "bundle exec pry"],
+    "startingDirectory": "/path/to/project"
   }
 }
 ```
