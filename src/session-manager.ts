@@ -6,12 +6,22 @@ import * as os from 'os';
 
 export class SessionManager {
   private sessions: Map<string, SessionState> = new Map();
-  private outputBuffers: Map<string, string> = new Map();
+  private outputBuffers: Map<string, string> = new Map(); // Complete output buffers
   private sessionLogs: Map<string, string[]> = new Map(); // Session-specific logs
   private globalLogs: string[] = []; // Global logs (server events)
   private readonly MAX_LOGS_PER_SESSION = 50; // Limit logs per session
   private readonly MAX_GLOBAL_LOGS = 100; // Limit global logs
-  private readonly MAX_OUTPUT_SIZE = 50 * 1024; // 50KB limit for command output
+  private readonly MAX_OUTPUT_SIZE = 50 * 1024; // 50KB limit for MCP responses
+
+  private truncateForMCPResponse(output: string): string {
+    if (output.length <= this.MAX_OUTPUT_SIZE) {
+      return output;
+    }
+    
+    const keepSize = Math.floor(this.MAX_OUTPUT_SIZE * 0.8); // Keep 80% of max size
+    return '[...output truncated. Total length: ' + output.length + ' chars, showing last ' + keepSize + ' chars...]\n' + 
+           output.slice(-keepSize);
+  }
 
   private log(message: string, sessionId?: string) {
     const timestamp = new Date().toISOString();
@@ -62,6 +72,43 @@ export class SessionManager {
       this.sessionLogs.clear();
       this.globalLogs = [];
     }
+  }
+
+  public getFullOutput(sessionId: string, offset: number = 0, limit: number = 40000): {
+    success: boolean;
+    output?: string;
+    totalLength?: number;
+    offset?: number;
+    length?: number;
+    hasMore?: boolean;
+    nextOffset?: number;
+    error?: string;
+  } {
+    const fullOutput = this.outputBuffers.get(sessionId);
+    
+    if (!fullOutput) {
+      return {
+        success: false,
+        error: `No output buffer found for session ${sessionId}`
+      };
+    }
+
+    const totalLength = fullOutput.length;
+    const endPos = Math.min(offset + limit, totalLength);
+    const outputChunk = fullOutput.slice(offset, endPos);
+    const actualLength = outputChunk.length;
+    const hasMore = endPos < totalLength;
+    const nextOffset = hasMore ? endPos : undefined;
+
+    return {
+      success: true,
+      output: outputChunk,
+      totalLength,
+      offset,
+      length: actualLength,
+      hasMore,
+      nextOffset
+    };
   }
 
   public getLogStats(): { totalSessions: number, totalLogs: number, globalLogs: number } {
@@ -228,8 +275,8 @@ Please respond with one of:
 
       return {
         success: !isError,
-        output: output.trim(),
-        error: isError ? output.trim() : undefined,
+        output: this.truncateForMCPResponse(output.trim()),
+        error: isError ? this.truncateForMCPResponse(output.trim()) : undefined,
         executionTime
       };
     } catch (error) {
@@ -318,17 +365,9 @@ Please respond with one of:
 
   private setupOutputHandlers(sessionId: string, process: nodePty.IPty): void {
     const appendOutput = (data: string) => {
+      // Always append to output buffer (complete output, no truncation during collection)
       const currentBuffer = this.outputBuffers.get(sessionId) || '';
-      let newBuffer = currentBuffer + data;
-      
-      // Truncate if exceeds maximum size, keeping the tail (most recent output)
-      if (newBuffer.length > this.MAX_OUTPUT_SIZE) {
-        const truncatedLength = newBuffer.length;
-        const keepSize = Math.floor(this.MAX_OUTPUT_SIZE * 0.8); // Keep 80% of max size
-        newBuffer = '[...output truncated. Total length: ' + truncatedLength + ' chars, showing last ' + keepSize + ' chars...]\n' + 
-                   newBuffer.slice(-keepSize);
-      }
-      
+      const newBuffer = currentBuffer + data;
       this.outputBuffers.set(sessionId, newBuffer);
     };
 

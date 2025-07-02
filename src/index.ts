@@ -62,6 +62,12 @@ const ListConfigsSchema = z.object({
   debug: z.boolean().optional().describe("Include debug logs in response (default: false)")
 });
 
+const GetFullOutputSchema = z.object({
+  sessionId: z.string().describe("Session ID"),
+  offset: z.number().optional().describe("Starting position in characters (default: 0)"),
+  limit: z.number().optional().describe("Number of characters to retrieve (default: 40000)")
+});
+
 // Handle list tools request
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -100,6 +106,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "answer_session_question",
         description: "Answer a question from session creation or command execution during LLM-assisted recovery. Use one of these response formats: READY:pattern (specify detected prompt like 'READY:❯'), SEND:command (send input like 'SEND:\\n' for Enter), WAIT:seconds (wait longer like 'WAIT:10'), FAILED:reason (mark as failed with explanation)",
         inputSchema: zodToJsonSchema(AnswerSessionQuestionSchema)
+      },
+      {
+        name: "get_full_output",
+        description: "Get the complete output buffer for a session in chunks to avoid token limits. Use offset and limit parameters to retrieve specific portions of large outputs.",
+        inputSchema: zodToJsonSchema(GetFullOutputSchema)
       }
     ]
   };
@@ -349,6 +360,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: JSON.stringify(response, null, 2)
+            }
+          ]
+        };
+      }
+
+      case "get_full_output": {
+        const params = GetFullOutputSchema.parse(args);
+        const { sessionId, offset = 0, limit = 40000 } = params;
+
+        const result = sessionManager.getFullOutput(sessionId, offset, limit);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
             }
           ]
         };
