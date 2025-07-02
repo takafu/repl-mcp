@@ -169,16 +169,20 @@ export class SessionManager {
         // LLM fallback succeeded, continue with session creation
       }
 
-      // Execute setup commands
-      this.log(`[DEBUG ${sessionId}] Executing setup commands: ${config.setupCommands.length}`, sessionId);
-      for (const command of config.setupCommands) {
-        await this.executeSetupCommand(sessionId, command);
+      // Execute commands in order
+      this.log(`[DEBUG ${sessionId}] Executing commands: ${config.commands.length}`, sessionId);
+      for (let i = 0; i < config.commands.length; i++) {
+        const command = config.commands[i];
+        const isLastCommand = i === config.commands.length - 1;
+        
+        if (isLastCommand) {
+          this.log(`[DEBUG ${sessionId}] Starting REPL: ${command}`, sessionId);
+          await this.startREPL(sessionId, command);
+        } else {
+          this.log(`[DEBUG ${sessionId}] Executing setup command: ${command}`, sessionId);
+          await this.executeSetupCommand(sessionId, command);
+        }
       }
-
-      // Start REPL or execute direct test commands for cmd_test
-      // Start REPL
-      this.log(`[DEBUG ${sessionId}] Starting REPL: ${config.replCommand}`, sessionId);
-      await this.startREPL(sessionId, config.replCommand);
 
       sessionState.status = 'ready';
       sessionState.lastActivity = new Date();

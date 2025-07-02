@@ -4,8 +4,7 @@ export interface REPLConfig {
   name: string;
   type: 'pry' | 'irb' | 'ipython' | 'node' | 'python' | 'custom' | 'cmd';
   shell: 'bash' | 'zsh' | 'cmd' | 'powershell' | 'cmd.exe';
-  setupCommands: string[];
-  replCommand: string;
+  commands: string[];
   workingDirectory?: string;
   environment?: Record<string, string>;
   promptPattern?: string;

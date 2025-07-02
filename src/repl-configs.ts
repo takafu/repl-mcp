@@ -5,8 +5,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'Pry (Ruby)',
     type: 'pry',
     shell: process.platform === 'win32' ? 'cmd' : 'bash',
-    setupCommands: [],
-    replCommand: 'pry --no-pager',
+    commands: ['pry --no-pager'],
     timeout: 10000
   },
 
@@ -14,11 +13,11 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'IRB (Ruby)',
     type: 'irb',
     shell: process.platform === 'win32' ? 'cmd' : 'bash',
-    setupCommands: [
+    commands: [
       'IRB.conf[:USE_READLINE] = false',
-      'IRB.conf[:PROMPT_MODE] = :DEFAULT'
+      'IRB.conf[:PROMPT_MODE] = :DEFAULT',
+      'irb'
     ],
-    replCommand: 'irb',
     timeout: 10000
   },
 
@@ -26,8 +25,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'CMD Test',
     type: 'cmd',
     shell: 'cmd.exe',
-    setupCommands: [],
-    replCommand: '',
+    commands: [],
     timeout: 10000
   },
 
@@ -35,10 +33,9 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'Rails Console',
     type: 'pry',
     shell: process.platform === 'win32' ? 'cmd' : 'bash',
-    setupCommands: [
+    commands: [
       'bundle exec rails console'
     ],
-    replCommand: '',
     timeout: 10000
   },
 
@@ -46,10 +43,9 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'Rails Console (Production)',
     type: 'pry',
     shell: process.platform === 'win32' ? 'cmd' : 'bash',
-    setupCommands: [
+    commands: [
       'RAILS_ENV=production bundle exec rails console'
     ],
-    replCommand: '',
     environment: {
       'RAILS_ENV': 'production'
     },
@@ -60,8 +56,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'IPython (Python)',
     type: 'ipython',
     shell: process.platform === 'win32' ? 'cmd' : 'bash',
-    setupCommands: [],
-    replCommand: 'ipython',
+    commands: ['ipython'],
     timeout: 10000
   },
 
@@ -69,8 +64,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'Node.js REPL',
     type: 'node',
     shell: process.platform === 'win32' ? 'cmd' : 'bash',
-    setupCommands: [],
-    replCommand: 'node',
+    commands: ['node'],
     timeout: 10000
   },
 
@@ -78,8 +72,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'Python REPL',
     type: 'python',
     shell: process.platform === 'win32' ? 'cmd' : 'bash',
-    setupCommands: [],
-    replCommand: 'python',
+    commands: ['python'],
     timeout: 10000
   },
 
@@ -87,8 +80,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'Bash Shell',
     type: 'custom',
     shell: 'bash',
-    setupCommands: [],
-    replCommand: '',
+    commands: [],
     timeout: 30000
   },
 
@@ -96,7 +88,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'Zsh Shell',
     type: 'custom',
     shell: 'zsh',
-    setupCommands: [
+    commands: [
       'export STARSHIP_CONFIG=/dev/null',
       'unset STARSHIP_SHELL',
       'export PS1=\'%% \'',
@@ -106,7 +98,6 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
       'unset precmd_functions',
       'unset preexec_functions'
     ],
-    replCommand: '',
     environment: {
       'STARSHIP_CONFIG': '/dev/null'
     },
@@ -125,8 +116,7 @@ export function listAvailableConfigs(): string[] {
 export function createCustomConfig(
   name: string,
   shell: REPLConfig['shell'],
-  replCommand: string,
-  setupCommands: string[] = [],
+  commands: string[],
   workingDirectory?: string,
   environment?: Record<string, string>,
   promptPattern?: string,
@@ -136,8 +126,7 @@ export function createCustomConfig(
     name,
     type: 'custom', // Custom type for dynamically created configs
     shell,
-    setupCommands,
-    replCommand,
+    commands,
     workingDirectory,
     environment,
     promptPattern,
