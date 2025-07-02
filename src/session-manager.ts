@@ -56,14 +56,12 @@ export class SessionManager {
 
   public getDebugLogs(sessionId?: string): string[] {
     if (sessionId) {
-      // Return session-specific logs + recent global logs
+      // Return session-specific logs only
       const sessionLogArray = this.sessionLogs.get(sessionId) || [];
-      const recentGlobalLogs = this.globalLogs.slice(-10); // Last 10 global logs
-      return [...recentGlobalLogs, ...sessionLogArray];
+      return sessionLogArray;
     } else {
-      // Return all logs (for backward compatibility)
-      const allSessionLogs = Array.from(this.sessionLogs.values()).flat();
-      return [...this.globalLogs, ...allSessionLogs];
+      // Return only recent global logs to avoid token overflow
+      return this.globalLogs.slice(-20); // Last 20 global logs only
     }
   }
 
@@ -126,24 +124,7 @@ export class SessionManager {
     const sessionId = this.generateSessionId();
     const startingDir = config.startingDirectory || process.cwd();
 
-    // Validate starting directory exists
-    try {
-      const stats = fs.statSync(startingDir);
-      if (!stats.isDirectory()) {
-        return {
-          success: false,
-          error: `Starting directory is not a directory: ${startingDir}`
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: `Starting directory does not exist or is not accessible: ${startingDir}`
-      };
-    }
-
-    this.log(`[DEBUG ${sessionId}] Starting session creation for ${config.type}`, sessionId);
-
+    // Create session state first, so sessionId always exists
     const sessionState: SessionState = {
       id: sessionId,
       config,
@@ -158,6 +139,30 @@ export class SessionManager {
 
     this.sessions.set(sessionId, sessionState);
     this.outputBuffers.set(sessionId, '');
+
+    // Validate starting directory exists
+    try {
+      const stats = fs.statSync(startingDir);
+      if (!stats.isDirectory()) {
+        sessionState.status = 'error';
+        sessionState.lastError = `Starting directory is not a directory: ${startingDir}`;
+        return {
+          success: false,
+          sessionId,
+          error: `Starting directory is not a directory: ${startingDir}`
+        };
+      }
+    } catch (error) {
+      sessionState.status = 'error';
+      sessionState.lastError = `Starting directory does not exist or is not accessible: ${startingDir}`;
+      return {
+        success: false,
+        sessionId,
+        error: `Starting directory does not exist or is not accessible: ${startingDir}`
+      };
+    }
+
+    this.log(`[DEBUG ${sessionId}] Starting session creation for ${config.type}`, sessionId);
 
     try {
       // Create shell process
