@@ -23,7 +23,7 @@ Working with remote REPLs (like Rails console on production servers) often force
 ## Installation
 
 [![npm version](https://img.shields.io/npm/v/repl-mcp)](https://www.npmjs.com/package/repl-mcp)
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=repl-mcp&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22repl-mcp%40latest%22%5D%7D)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=repl-mcp&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22repl-mcp%40latest%22%5D%7D)
 
 ### VS Code
 
