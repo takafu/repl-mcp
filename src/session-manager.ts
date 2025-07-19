@@ -5,12 +5,18 @@ import { PromptDetector } from './prompt-detector.js';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
+import pkg from '@xterm/xterm';
+import serializePkg from '@xterm/addon-serialize';
+const Terminal = pkg.Terminal;
+const SerializeAddon = serializePkg.SerializeAddon;
 
 export class SessionManager {
   private sessions: Map<string, SessionState> = new Map();
   private outputBuffers: Map<string, string> = new Map(); // Complete output buffers
   private sessionLogs: Map<string, string[]> = new Map(); // Session-specific logs
   private globalLogs: string[] = []; // Global logs (server events)
+  private serverTerminals: Map<string, any> = new Map(); // Server-side xterm.js instances
+  private serializeAddons: Map<string, any> = new Map(); // Serialize addons for each terminal
   private readonly MAX_LOGS_PER_SESSION = 50; // Limit logs per session
   private readonly MAX_GLOBAL_LOGS = 100; // Limit global logs
   private readonly MAX_OUTPUT_SIZE = 50 * 1024; // 50KB limit for MCP responses
@@ -169,6 +175,10 @@ export class SessionManager {
       this.log(`[DEBUG ${sessionId}] Creating shell process`, sessionId);
       const shellProcess = this.createShellProcess(config, startingDir);
       sessionState.process = shellProcess;
+
+      // Create server-side terminal
+      this.log(`[DEBUG ${sessionId}] Creating server-side terminal`, sessionId);
+      this.createServerSideTerminal(sessionId);
 
       // Setup output handlers
       this.log(`[DEBUG ${sessionId}] Setting up output handlers`, sessionId);
@@ -344,6 +354,8 @@ Please respond with one of:
     this.sessions.delete(sessionId);
     this.outputBuffers.delete(sessionId);
     this.sessionLogs.delete(sessionId); // Clean up session-specific logs
+    this.serverTerminals.delete(sessionId); // Clean up server-side terminal
+    this.serializeAddons.delete(sessionId); // Clean up serialize addon
     
     return true;
   }
@@ -390,12 +402,52 @@ Please respond with one of:
     });
   }
 
+  private createServerSideTerminal(sessionId: string): void {
+    // Create server-side xterm.js instance
+    const terminal = new Terminal({
+      cols: 80,
+      rows: 30,
+      allowProposedApi: true // Required for some addons
+    });
+
+    // Create and load SerializeAddon
+    const serializeAddon = new SerializeAddon();
+    terminal.loadAddon(serializeAddon);
+
+    // Store references
+    this.serverTerminals.set(sessionId, terminal);
+    this.serializeAddons.set(sessionId, serializeAddon);
+
+    this.log(`[DEBUG ${sessionId}] Server-side terminal created`, sessionId);
+  }
+
+  public getSerializedTerminalState(sessionId: string): string | null {
+    const serializeAddon = this.serializeAddons.get(sessionId);
+    if (!serializeAddon) {
+      return null;
+    }
+    
+    try {
+      return serializeAddon.serialize();
+    } catch (error) {
+      this.log(`[ERROR ${sessionId}] Failed to serialize terminal state: ${error}`, sessionId);
+      return null;
+    }
+  }
+
   private setupOutputHandlers(sessionId: string, process: nodePty.IPty): void {
+    const serverTerminal = this.serverTerminals.get(sessionId);
+    
     const appendOutput = (data: string) => {
       // Always append to output buffer (complete output, no truncation during collection)
       const currentBuffer = this.outputBuffers.get(sessionId) || '';
       const newBuffer = currentBuffer + data;
       this.outputBuffers.set(sessionId, newBuffer);
+      
+      // Also send to server-side terminal for proper ANSI processing
+      if (serverTerminal) {
+        serverTerminal.write(data);
+      }
     };
 
     // node-pty uses onData method instead of 'data' event

@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "start": "npm run build && node build/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "webui": "ts-node src/web-server.ts"
   },
   "keywords": [
     "mcp",
@@ -29,13 +30,20 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.0",
+    "@xterm/addon-serialize": "^0.13.0",
+    "@xterm/xterm": "^5.5.0",
+    "express": "^5.1.0",
     "node-pty": "github:microsoft/node-pty#main",
     "strip-ansi": "^7.1.0",
+    "ws": "^8.18.3",
     "zod": "^3.22.4",
     "zod-to-json-schema": "^3.24.5"
   },
   "devDependencies": {
+    "@types/express": "^5.0.3",
     "@types/node": "^20.10.0",
+    "@types/ws": "^8.18.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.0"
   },
   "bin": {

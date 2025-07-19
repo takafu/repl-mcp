@@ -8,6 +8,14 @@ import { SessionManager } from './session-manager.js'; // Remove writeFileSync i
 import { REPLConfig } from './types.js';
 import { DEFAULT_REPL_CONFIGS, createCustomConfig, getConfigByName, listAvailableConfigs } from './repl-configs.js';
 
+// Web server imports
+import express from 'express';
+import { createServer } from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import url from 'url';
+
 // Create MCP server
 const server = new Server({
   name: "repl-mcp",
@@ -412,12 +420,121 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+// Web server setup
+function setupWebServer() {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  
+  const app = express();
+  const port = 8023; // HTTP (80) + Telnet (23) = Terminal-like port
+  
+  // Serve static files from public/ at root level  
+  app.use(express.static(path.join(__dirname, '../public')));
+  
+  // Route for session pages
+  app.get('/session/:sessionId', (_req, res) => {
+    res.sendFile(path.join(__dirname, '../public/index.html'));
+  });
+  
+  const httpServer = createServer(app);
+  const wss = new WebSocketServer({ server: httpServer, path: '/terminal' });
+  
+  wss.on('connection', (ws: WebSocket, req) => {
+    // Extract sessionId from URL query
+    const parsedUrl = url.parse(req.url || '', true);
+    const sessionId = parsedUrl.query.sessionId as string;
+    
+    if (!sessionId) {
+      ws.send('Error: sessionId is required\r\n');
+      ws.close();
+      return;
+    }
+  
+    // Get existing session
+    const session = sessionManager.getSession(sessionId);
+    if (!session) {
+      ws.send(`Error: Session ${sessionId} not found\r\n`);
+      ws.close();
+      return;
+    }
+  
+    if (session.status !== 'ready') {
+      ws.send(`Error: Session ${sessionId} is not ready (status: ${session.status})\r\n`);
+      ws.close();
+      return;
+    }
+  
+    if (!session.process) {
+      ws.send(`Error: Session ${sessionId} has no active process\r\n`);
+      ws.close();
+      return;
+    }
+  
+    console.error(`WebSocket connected to session ${sessionId}`);
+  
+    // Restore terminal state from server-side terminal
+    const serializedState = sessionManager.getSerializedTerminalState(sessionId);
+    if (serializedState) {
+      console.error(`Restoring terminal state for session ${sessionId}`);
+      ws.send(serializedState);
+    } else {
+      console.error(`No terminal state to restore for session ${sessionId}`);
+    }
+  
+    // Connect to existing session's pty process
+    const ptyProcess = session.process;
+  
+    // pty output → WebSocket
+    const dataHandler = (data: string) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    };
+    
+    ptyProcess.onData(dataHandler);
+  
+    // WebSocket input → pty
+    ws.on('message', (msg: Buffer) => {
+      ptyProcess.write(msg.toString());
+    });
+  
+    ws.on('close', () => {
+      console.error(`WebSocket disconnected from session ${sessionId}`);
+      // Keep session alive, only disconnect WebSocket
+      // TODO: Remove dataHandler from ptyProcess if needed
+    });
+  });
+  
+  httpServer.listen(port, () => {
+    console.error(`Web UI available at http://localhost:${port}`);
+    console.error(`Connect to session: http://localhost:${port}/session/YOUR_SESSION_ID`);
+    console.error(`Use --no-web-ui to disable Web UI`);
+  });
+}
+
+// Parse command line arguments
+function parseArgs() {
+  const args = process.argv.slice(2);
+  return {
+    noWebUI: args.includes('--no-web-ui')
+  };
+}
+
 // Start the server
 async function main() {
-  // No longer clearing debug.log file, as logs are in-memory
+  const { noWebUI } = parseArgs();
+  
+  // Start MCP server on stdio
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('REPL MCP server running on stdio');
+  
+  // Start Web server on HTTP (unless disabled)
+  if (!noWebUI) {
+    setupWebServer();
+  } else {
+    console.error('Web UI disabled by --no-web-ui flag');
+  }
 }
 
 main().catch(console.error);
