@@ -7,8 +7,7 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "start": "npm run build && node build/index.js",
-    "dev": "tsc --watch",
-    "webui": "ts-node src/web-server.ts"
+    "dev": "tsc --watch"
   },
   "keywords": [
     "mcp",
