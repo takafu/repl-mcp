@@ -81,7 +81,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "create_repl_session",
-        description: "Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI.",
+        description: "Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI. Please show the webUrl to the user so they can open it in their browser.",
         inputSchema: zodToJsonSchema(CreateSessionSchema)
       },
       {
@@ -91,12 +91,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "list_repl_sessions",
-        description: "List all active REPL sessions. Each session includes a webUrl for browser access.",
+        description: "List all active REPL sessions. Each session includes a webUrl for browser access. Please show the webUrls to the user so they can open sessions in their browser.",
         inputSchema: zodToJsonSchema(ListSessionsSchema)
       },
       {
         name: "get_session_details",
-        description: "Get detailed information about a specific session. Includes webUrl for browser access.",
+        description: "Get detailed information about a specific session. Includes webUrl for browser access. Please show the webUrl to the user so they can open the session in their browser.",
         inputSchema: zodToJsonSchema(SessionIdSchema)
       },
       {
