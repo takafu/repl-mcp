@@ -28,7 +28,7 @@ export interface SessionState {
 
 export interface CommandResult {
   success: boolean;
-  output: string;
+  rawOutput: string;
   error?: string;
   executionTime: number;
   // LLM assistance fields

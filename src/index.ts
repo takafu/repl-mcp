@@ -104,6 +104,11 @@ const GetFullOutputSchema = z.object({
   limit: z.number().optional().describe("Number of characters to retrieve (default: 40000)")
 });
 
+const GetCleanTextSchema = z.object({
+  sessionId: z.string().describe("Session ID"),
+  fullText: z.boolean().optional().describe("Get full terminal text instead of current line (default: false)")
+});
+
 // Handle list tools request
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -115,7 +120,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "execute_repl_command",
-        description: "Execute a command in an existing REPL session. ALWAYS show the command output to the user after execution. Decode ANSI escape codes if present and format the output for readability. For lengthy outputs, summarize key results while preserving important details.",
+        description: "Execute a command in an existing REPL session. ALWAYS show the command output to the user after execution. Decode ANSI escape codes if present and format the output for readability. For lengthy outputs, summarize key results while preserving important details. Debug logs are automatically included in the response; additional debug information can be obtained using get_session_details.",
         inputSchema: zodToJsonSchema(ExecuteCommandSchema)
       },
       {
@@ -145,8 +150,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "get_full_output",
-        description: "Get the complete output buffer for a session in chunks to avoid token limits. Use offset and limit parameters to retrieve specific portions of large outputs.",
+        description: "Get the last command's output buffer for a session in chunks to avoid token limits. This returns the output from the most recent command execution. Use offset and limit parameters to retrieve specific portions of large outputs.",
         inputSchema: zodToJsonSchema(GetFullOutputSchema)
+      },
+      {
+        name: "get_clean_text",
+        description: "Get clean terminal text without ANSI escape codes. Returns either the current line (where cursor is) or full terminal content depending on the fullText parameter.",
+        inputSchema: zodToJsonSchema(GetCleanTextSchema)
       },
 
     ]
@@ -230,23 +240,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const result = await sessionManager.executeCommand(sessionId, command, timeout);
         
+        const response: any = {
+          success: result.success,
+          rawOutput: result.rawOutput,
+          error: result.error,
+          executionTime: result.executionTime,
+          // LLM assistance fields
+          question: result.question,
+          questionType: result.questionType,
+          context: result.context,
+          canContinue: result.canContinue,
+          // Hint for agent behavior
+          hint: result.success ? "Decode ANSI escape codes, extract meaningful output, and present it to the user in a clean, readable format" : undefined
+        };
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                success: result.success,
-                output: result.output,
-                error: result.error,
-                executionTime: result.executionTime,
-                // LLM assistance fields
-                question: result.question,
-                questionType: result.questionType,
-                context: result.context,
-                canContinue: result.canContinue,
-                // Hint for agent behavior
-                hint: result.success ? "Please show this command output to the user in a readable format" : undefined
-              }, null, 2)
+              text: JSON.stringify(response, null, 2)
             }
           ]
         };
@@ -421,6 +433,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      }
+
+      case "get_clean_text": {
+        const params = GetCleanTextSchema.parse(args);
+        const { sessionId, fullText = false } = params;
+
+        const cleanText = fullText 
+          ? sessionManager.getFullCleanText(sessionId)
+          : sessionManager.getCurrentLineCleanText(sessionId);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: cleanText !== null,
+                cleanText: cleanText || '',
+                fullText
+              }, null, 2)
             }
           ]
         };
