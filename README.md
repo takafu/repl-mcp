@@ -1,10 +1,10 @@
 # repl-mcp
 
-A simple MCP server for managing REPL sessions. Provides basic tools to create and execute commands in various REPLs and shells.
+A simple MCP server for managing REPL sessions. Provides basic tools to create and execute commands in various REPLs and shells, with integrated Web UI for browser-based terminal access.
 
 ## Motivation
 
-Working with remote REPLs (like Rails console on production servers) often forces you to cram complex operations into single commands since losing connection means losing your session state. This tool enables persistent REPL sessions that survive individual command executions, allowing you to work naturally with interactive environments through AI agents.
+Working with remote REPLs (like Rails console on production servers) often forces you to cram complex operations into single commands since losing connection means losing your session state. This tool enables persistent REPL sessions that survive individual command executions, allowing you to work naturally with interactive environments through AI agents. The integrated Web UI provides browser-based terminal access for direct interaction.
 
 ## Features
 
@@ -12,6 +12,8 @@ Working with remote REPLs (like Rails console on production servers) often force
 
 - **Multiple REPL Support**: Python, IPython, Node.js, Ruby (pry, irb), bash, zsh
 - **Session Management**: Create, execute commands, and destroy REPL sessions
+- **Web UI Integration**: Browser-based terminal access for direct session interaction
+- **Dynamic Port Selection**: Automatically finds available ports starting from 8023
 - **Customizable Setup**: Configure setup commands and environment variables
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
@@ -19,6 +21,39 @@ Working with remote REPLs (like Rails console on production servers) often force
 
 - **Timeout Recovery**: LLM assistance when commands timeout
 - **Session Learning**: Remembers prompt patterns within sessions
+- **Responsive Terminal**: 132x43 terminal size for better application compatibility
+- **Session URL Sharing**: Easy sharing of session URLs for browser access
+
+## Web UI Features
+
+### Browser-Based Terminal Access
+
+repl-mcp includes an integrated Web UI that provides browser-based terminal access to your REPL sessions:
+
+- **Direct Session Access**: Open session URLs in your browser for direct terminal interaction
+- **Real-time Terminal**: Full xterm.js terminal with real-time input/output
+- **Session Management**: View and manage all active sessions through the web interface
+- **Responsive Design**: Terminal adapts to browser window size
+- **Cross-Platform**: Works on any device with a modern web browser
+
+### Web UI Usage
+
+1. **Create a Session**: Use MCP tools to create a REPL session
+2. **Get Session URL**: The response includes a `webUrl` field
+3. **Open in Browser**: Copy the URL and open it in your browser
+4. **Direct Interaction**: Use the browser terminal for direct session interaction
+
+### Web UI URLs
+
+- **Root URL**: `http://localhost:8023/` - Shows server status and basic information
+- **Session URL**: `http://localhost:8023/session/SESSION_ID` - Direct terminal access to a specific session
+
+### Dynamic Port Selection
+
+The Web UI automatically finds available ports:
+- Starts with port 8023
+- If port is in use, tries 8024, 8025, etc.
+- URLs are automatically updated with the correct port
 
 ## Installation
 
@@ -85,12 +120,18 @@ Add to your MCP settings file:
 
 ### `create_repl_session`
 
-Create a new REPL session with predefined or custom configuration.
+Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI. Please show the webUrl to the user so they can open it in their browser.
 
 **Parameters:**
 
 - `configName` (optional): Name of predefined configuration
 - `customConfig` (optional): Custom configuration object
+
+**Response includes:**
+
+- `sessionId`: Unique session identifier (6-character format)
+- `webUrl`: Browser URL for direct terminal access
+- `config`: Configuration name used
 
 **Example:**
 
@@ -100,17 +141,13 @@ Create a new REPL session with predefined or custom configuration.
 }
 ```
 
-Or with custom config:
-
+Response:
 ```json
 {
-  "customConfig": {
-    "name": "Custom Ruby Session",
-    "type": "pry",
-    "shell": "bash",
-    "commands": ["cd /path/to/project", "bundle install", "bundle exec pry"],
-    "startingDirectory": "/path/to/project"
-  }
+  "success": true,
+  "sessionId": "abc123",
+  "config": "Ruby Pry REPL",
+  "webUrl": "http://localhost:8023/session/abc123"
 }
 ```
 
@@ -128,7 +165,7 @@ Execute a command in an existing REPL session.
 
 ```json
 {
-  "sessionId": "session_1234567890_abc123",
+  "sessionId": "abc123",
   "command": "puts 'Hello, World!'"
 }
 ```
@@ -155,15 +192,25 @@ When timeout occurs, the response may include an LLM question:
 
 ### `list_repl_sessions`
 
-List all active REPL sessions.
+List all active REPL sessions. Each session includes a webUrl for browser access. Please show the webUrls to the user so they can open sessions in their browser.
+
+**Response includes:**
+
+- `sessions`: Array of session objects with webUrl for each
+- Each session includes: id, name, type, status, webUrl, etc.
 
 ### `get_session_details`
 
-Get detailed information about a specific session.
+Get detailed information about a specific session. Includes webUrl for browser access. Please show the webUrl to the user so they can open the session in their browser.
 
 **Parameters:**
 
 - `sessionId`: The session ID
+
+**Response includes:**
+
+- `session`: Detailed session information
+- `webUrl`: Browser URL for direct terminal access
 
 ### `destroy_repl_session`
 
@@ -194,7 +241,7 @@ Answer a question from session creation or command execution during LLM-assisted
 
 ```json
 {
-  "sessionId": "session_1234567890_abc123",
+  "sessionId": "abc123",
   "answer": "READY:∙"
 }
 ```
@@ -254,16 +301,42 @@ Patterns identified by LLM are remembered for the session duration to improve su
 }
 ```
 
+Response:
+```json
+{
+  "success": true,
+  "sessionId": "xyz789",
+  "config": "Python REPL",
+  "webUrl": "http://localhost:8023/session/xyz789"
+}
+```
+
 #### Execute Python Code
 
 ```json
 {
   "tool": "execute_repl_command",
   "arguments": {
-    "sessionId": "session_1234567890_abc123",
+    "sessionId": "xyz789",
     "command": "print('Hello from REPL!')"
   }
 }
+```
+
+### Web UI Usage
+
+#### Open Session in Browser
+
+1. Create a session and get the webUrl
+2. Open the webUrl in your browser
+3. Use the browser terminal for direct interaction
+
+Example workflow:
+```bash
+# 1. Create session via MCP
+# 2. Copy webUrl from response
+# 3. Open in browser: http://localhost:8023/session/xyz789
+# 4. Use browser terminal for direct interaction
 ```
 
 ### LLM-Assisted Recovery Example
@@ -274,7 +347,7 @@ When a command times out, you can use LLM assistance:
 {
   "tool": "answer_session_question",
   "arguments": {
-    "sessionId": "session_1234567890_abc123",
+    "sessionId": "xyz789",
     "answer": "READY:❯"
   }
 }
@@ -286,13 +359,14 @@ The session will remember this pattern for future commands.
 
 Each session maintains:
 
-- **Unique session ID**: For session identification and management
+- **Unique session ID**: 6-character format for easy identification and management
 - **Configuration details**: REPL type, shell, setup commands, etc.
 - **Current status**: initializing, ready, executing, error, terminated
 - **Command history**: Record of executed commands
 - **Last output and errors**: Most recent execution results
 - **Creation and activity timestamps**: Session lifecycle tracking
 - **Learned prompt patterns**: Custom patterns discovered through LLM assistance
+- **Web UI access**: Browser URL for direct terminal interaction
 
 ### Session Lifecycle
 
@@ -383,6 +457,13 @@ This will start TypeScript in watch mode for development.
 2. **Commands timeout consistently**: Increase timeout value or check REPL responsiveness
 3. **REPL not found**: Ensure the REPL executable is in your PATH
 
+#### Web UI Issues
+
+1. **Port conflicts**: The server automatically finds available ports starting from 8023
+2. **Browser terminal not responsive**: Check that JavaScript is enabled and try refreshing
+3. **Session URL not working**: Verify the session is still active and the port is correct
+4. **Terminal size issues**: The terminal uses 132x43 size for better application compatibility
+
 #### LLM-Assisted Issues
 
 1. **LLM guidance not working**: Ensure you're using the `answer_session_question` tool with proper response format
@@ -395,6 +476,13 @@ This will start TypeScript in watch mode for development.
 
 - **Custom prompts**: Use `READY:pattern` to teach the system your prompt when timeouts occur
 - **Nested environments**: Use `WAIT:seconds` for environments that need time to settle
+
+#### Web UI Best Practices
+
+- **Session sharing**: Share webUrl with team members for collaborative debugging
+- **Browser compatibility**: Use modern browsers (Chrome, Firefox, Safari, Edge)
+- **Direct interaction**: Use browser terminal for complex interactive sessions
+- **Multiple sessions**: Open multiple browser tabs for different sessions
 
 #### Performance Tips
 
