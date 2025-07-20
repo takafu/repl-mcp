@@ -175,7 +175,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
         // Add Web UI URL if session was created successfully
         if (result.success && result.sessionId) {
-          response.webUrl = `http://localhost:8023/session/${result.sessionId}`;
+          const port = (global as any).webServerPort || 8023;
+          response.webUrl = `http://localhost:${port}/session/${result.sessionId}`;
         }
         
         // Auto-include debug logs for failures, LLM assistance, or when explicitly requested
@@ -235,7 +236,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             createdAt: session.createdAt,
             lastActivity: session.lastActivity,
             historyCount: session.history.length,
-            webUrl: `http://localhost:8023/session/${session.id}`
+            webUrl: `http://localhost:${(global as any).webServerPort || 8023}/session/${session.id}`
           }))
         };
         
@@ -287,7 +288,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             lastError: session.lastError,
             createdAt: session.createdAt,
             lastActivity: session.lastActivity,
-            webUrl: `http://localhost:8023/session/${session.id}`
+            webUrl: `http://localhost:${(global as any).webServerPort || 8023}/session/${session.id}`
           }
         };
         
@@ -433,7 +434,7 @@ function setupWebServer() {
   const __dirname = path.dirname(__filename);
   
   const app = express();
-  const port = 8023; // HTTP (80) + Telnet (23) = Terminal-like port
+  const basePort = 8023; // HTTP (80) + Telnet (23) = Terminal-like port
   
   // Serve static files from public/ at root level  
   app.use(express.static(path.join(__dirname, '../public')));
@@ -530,10 +531,41 @@ function setupWebServer() {
     });
   });
   
-  httpServer.listen(port, () => {
-    console.error(`Web UI available at http://localhost:${port}`);
-    console.error(`Connect to session: http://localhost:${port}/session/YOUR_SESSION_ID`);
-    console.error(`Use --no-web-ui to disable Web UI`);
+  // Find available port starting from basePort
+  function findAvailablePort(startPort: number): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const server = createServer();
+      
+      server.listen(startPort, () => {
+        const port = (server.address() as any).port;
+        server.close(() => {
+          resolve(port);
+        });
+      });
+      
+      server.on('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') {
+          // Try next port
+          findAvailablePort(startPort + 1).then(resolve).catch(reject);
+        } else {
+          reject(err);
+        }
+      });
+    });
+  }
+  
+  // Start server with dynamic port selection
+  findAvailablePort(basePort).then(port => {
+    httpServer.listen(port, () => {
+      console.error(`Web UI available at http://localhost:${port}`);
+      console.error(`Connect to session: http://localhost:${port}/session/YOUR_SESSION_ID`);
+      console.error(`Use --no-web-ui to disable Web UI`);
+      
+      // Update global port for URL generation
+      (global as any).webServerPort = port;
+    });
+  }).catch(error => {
+    console.error(`Failed to start Web server: ${error}`);
   });
 }
 
