@@ -7,19 +7,48 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { SessionManager } from './session-manager.js'; // Remove writeFileSync import
 import { REPLConfig } from './types.js';
 import { DEFAULT_REPL_CONFIGS, createCustomConfig, getConfigByName, listAvailableConfigs } from './repl-configs.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 // Web server imports
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import url from 'url';
+
+// Get version info from package.json
+function getVersionInfo() {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const packageJsonPath = join(__dirname, '..', 'package.json');
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    
+    return {
+      version: packageJson.version,
+      name: packageJson.name,
+      description: packageJson.description,
+      author: packageJson.author,
+      license: packageJson.license,
+      repository: packageJson.repository?.url,
+      homepage: packageJson.homepage
+    };
+  } catch (error) {
+    return {
+      version: "unknown",
+      name: "repl-mcp",
+      description: "Universal REPL session manager MCP server",
+      error: "Failed to read package.json"
+    };
+  }
+}
 
 // Create MCP server
 const server = new Server({
   name: "repl-mcp",
-  version: "1.0.0"
+  version: getVersionInfo().version
 }, {
   capabilities: {
     tools: {}
@@ -118,7 +147,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "get_full_output",
         description: "Get the complete output buffer for a session in chunks to avoid token limits. Use offset and limit parameters to retrieve specific portions of large outputs.",
         inputSchema: zodToJsonSchema(GetFullOutputSchema)
-      }
+      },
+
     ]
   };
 });
@@ -396,6 +426,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+
+
       default:
         return {
           content: [
@@ -572,6 +604,19 @@ function setupWebServer() {
 // Parse command line arguments
 function parseArgs() {
   const args = process.argv.slice(2);
+  
+  // Handle --version flag
+  if (args.includes('--version')) {
+    const versionInfo = getVersionInfo();
+    console.log(`${versionInfo.name} v${versionInfo.version}`);
+    console.log(versionInfo.description);
+    console.log(`Author: ${versionInfo.author}`);
+    console.log(`License: ${versionInfo.license}`);
+    console.log(`Repository: ${versionInfo.repository}`);
+    console.log(`Homepage: ${versionInfo.homepage}`);
+    process.exit(0);
+  }
+  
   return {
     noWebUI: args.includes('--no-web-ui')
   };
