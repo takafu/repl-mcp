@@ -115,7 +115,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "create_repl_session",
-        description: "Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI. Please show the webUrl to the user so they can open it in their browser.",
+        description: "Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI. Please show the webUrl to the user so they can open it in their browser. Note: If using zsh in custom commands, you may need to manually run 'histchars=' to disable history expansion.",
         inputSchema: zodToJsonSchema(CreateSessionSchema)
       },
       {
@@ -213,8 +213,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           config: config.name
         };
         
-        // Add Web UI URL if session was created successfully
-        if (result.success && result.sessionId) {
+        // Add Web UI URL if session ID exists (even for LLM assistance cases)
+        if (result.sessionId) {
           const port = (global as any).webServerPort || 8023;
           response.webUrl = `http://localhost:${port}/session/${result.sessionId}`;
         }
@@ -537,8 +537,16 @@ function setupWebServer() {
       return;
     }
   
-    if (session.status !== 'ready') {
+    // Allow WebUI access for sessions that can potentially be recovered via LLM assistance
+    if (session.status !== 'ready' && session.status !== 'error') {
       ws.send(`Error: Session ${sessionId} is not ready (status: ${session.status})\r\n`);
+      ws.close();
+      return;
+    }
+    
+    // For error status sessions, check if they have an active process (indicating they might be recoverable)
+    if (session.status === 'error' && !session.process) {
+      ws.send(`Error: Session ${sessionId} is in error state and cannot be accessed (no active process)\r\n`);
       ws.close();
       return;
     }

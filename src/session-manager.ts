@@ -181,6 +181,12 @@ export class SessionManager {
       const shellProcess = this.createShellProcess(config, startingDir);
       sessionState.process = shellProcess;
 
+      // Send zsh-specific initialization immediately after process creation
+      if (config.shell === 'zsh') {
+        this.log(`[DEBUG ${sessionId}] Sending histchars initialization for zsh`, sessionId);
+        shellProcess.write('histchars=\r\n');
+      }
+
       // Create server-side terminal
       this.log(`[DEBUG ${sessionId}] Creating server-side terminal`, sessionId);
       this.createServerSideTerminal(sessionId);
