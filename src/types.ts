@@ -2,7 +2,7 @@ import * as nodePty from 'node-pty';
 
 export interface REPLConfig {
   name: string;
-  type: 'pry' | 'irb' | 'ipython' | 'node' | 'python' | 'custom' | 'cmd';
+  type: 'pry' | 'irb' | 'ipython' | 'node' | 'python' | 'bash' | 'zsh' | 'cmd' | 'custom';
   shell: 'bash' | 'zsh' | 'cmd' | 'powershell' | 'cmd.exe';
   commands: string[];
   startingDirectory?: string;

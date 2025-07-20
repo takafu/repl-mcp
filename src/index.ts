@@ -63,7 +63,7 @@ const CreateSessionSchema = z.object({
   configName: z.string().optional().describe("Pre-defined configuration name"),
   customConfig: z.object({
     name: z.string().describe("Session name"),
-    type: z.enum(['pry', 'irb', 'ipython', 'node', 'python', 'custom']).describe("REPL type"),
+    type: z.enum(['pry', 'irb', 'ipython', 'node', 'python', 'bash', 'zsh', 'cmd', 'custom']).describe("REPL type"),
     shell: z.enum(['bash', 'zsh', 'cmd', 'powershell']).describe("Shell type"),
     commands: z.array(z.string()).describe("Commands to execute in order. The last command should start the REPL."),
     startingDirectory: z.string().optional().describe("Host directory where the shell process will start (must exist)"),
