@@ -81,7 +81,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "create_repl_session",
-        description: "Create a new REPL session with predefined or custom configuration",
+        description: "Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI.",
         inputSchema: zodToJsonSchema(CreateSessionSchema)
       },
       {
@@ -91,12 +91,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "list_repl_sessions",
-        description: "List all active REPL sessions",
+        description: "List all active REPL sessions. Each session includes a webUrl for browser access.",
         inputSchema: zodToJsonSchema(ListSessionsSchema)
       },
       {
         name: "get_session_details",
-        description: "Get detailed information about a specific session",
+        description: "Get detailed information about a specific session. Includes webUrl for browser access.",
         inputSchema: zodToJsonSchema(SessionIdSchema)
       },
       {
@@ -173,6 +173,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           config: config.name
         };
         
+        // Add Web UI URL if session was created successfully
+        if (result.success && result.sessionId) {
+          response.webUrl = `http://localhost:8023/session/${result.sessionId}`;
+        }
+        
         // Auto-include debug logs for failures, LLM assistance, or when explicitly requested
         if (debug || !result.success || result.question) {
           response.debugLogs = sessionManager.getDebugLogs(result.sessionId);
@@ -229,7 +234,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             status: session.status,
             createdAt: session.createdAt,
             lastActivity: session.lastActivity,
-            historyCount: session.history.length
+            historyCount: session.history.length,
+            webUrl: `http://localhost:8023/session/${session.id}`
           }))
         };
         
@@ -280,7 +286,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             lastOutput: session.lastOutput,
             lastError: session.lastError,
             createdAt: session.createdAt,
-            lastActivity: session.lastActivity
+            lastActivity: session.lastActivity,
+            webUrl: `http://localhost:8023/session/${session.id}`
           }
         };
         
