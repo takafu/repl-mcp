@@ -20,6 +20,7 @@ export class SessionManager {
   private readonly MAX_LOGS_PER_SESSION = 50; // Limit logs per session
   private readonly MAX_GLOBAL_LOGS = 100; // Limit global logs
   private readonly MAX_OUTPUT_SIZE = 50 * 1024; // 50KB limit for MCP responses
+  private readonly MAX_HISTORY_SIZE = 10; // Limit history to last 10 commands
 
   private truncateForMCPResponse(output: string): string {
     if (output.length <= this.MAX_OUTPUT_SIZE) {
@@ -125,6 +126,8 @@ export class SessionManager {
       globalLogs: this.globalLogs.length
     };
   }
+
+
 
   public async createSession(config: REPLConfig): Promise<SessionCreationResult> {
     const sessionId = this.generateSessionId();
@@ -307,6 +310,12 @@ Please respond with one of:
 
       session.status = 'ready';
       session.history.push(command);
+      
+      // Limit history to last MAX_HISTORY_SIZE commands
+      if (session.history.length > this.MAX_HISTORY_SIZE) {
+        session.history = session.history.slice(-this.MAX_HISTORY_SIZE);
+      }
+      
       session.lastOutput = output;
       session.lastActivity = new Date();
 
