@@ -4,7 +4,7 @@ A simple MCP server for managing REPL sessions. Provides basic tools to create a
 
 ## Motivation
 
-Working with remote REPLs (like Rails console on production servers) often forces you to cram complex operations into single commands since losing connection means losing your session state. This tool enables persistent REPL sessions that survive individual command executions, allowing you to work naturally with interactive environments through AI agents. The integrated Web UI provides browser-based terminal access for direct interaction.
+Working with remote REPLs (like Rails console on production servers) often forces you to cram complex operations into single commands since losing connection means losing your session state. This tool enables persistent REPL sessions that survive individual command executions, allowing you to work naturally with interactive environments through AI agents. The integrated Web UI provides browser-based monitoring for session observation.
 
 ## Features
 
@@ -12,7 +12,7 @@ Working with remote REPLs (like Rails console on production servers) often force
 
 - **Multiple REPL Support**: Python, IPython, Node.js, Ruby (pry, irb), bash, zsh
 - **Session Management**: Create, execute commands, and destroy REPL sessions
-- **Web UI Integration**: Browser-based terminal access for direct session interaction
+- **Web UI Integration**: Browser-based terminal monitoring for session observation
 - **Customizable Setup**: Configure setup commands and environment variables
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
@@ -23,13 +23,13 @@ Working with remote REPLs (like Rails console on production servers) often force
 
 ## Web UI Features
 
-### Browser-Based Terminal Access
+### Browser-Based Session Monitoring
 
 repl-mcp includes an integrated Web UI that provides browser-based monitoring and observation of your REPL sessions:
 
 - **Session Monitoring**: Open session URLs in your browser to monitor session activity
-- **Real-time Terminal**: Full xterm.js terminal with real-time input/output observation
-- **Session Management**: View and manage all active sessions through the web interface
+- **Real-time Observation**: Full xterm.js terminal for real-time output observation
+- **Session Management**: View and monitor all active sessions through the web interface
 - **Cross-Platform**: Works on any device with a modern web browser
 
 ### Web UI Usage
@@ -37,7 +37,7 @@ repl-mcp includes an integrated Web UI that provides browser-based monitoring an
 1. **Create a Session**: Use MCP tools to create a REPL session
 2. **Get Session URL**: The response includes a `webUrl` field
 3. **Open in Browser**: Copy the URL and open it in your browser
-4. **Monitor Activity**: Use the browser terminal to monitor session activity and observe real-time output
+4. **Monitor Activity**: Observe session activity and real-time output through the browser terminal
 
 ### Web UI URLs
 
@@ -325,14 +325,14 @@ Response:
 
 1. Create a session and get the webUrl
 2. Open the webUrl in your browser
-3. Use the browser terminal to monitor session activity
+3. Monitor session activity through the browser terminal
 
 Example workflow:
 ```bash
 # 1. Create session via MCP
 # 2. Copy webUrl from response
 # 3. Open in browser: http://localhost:8023/session/xyz789
-# 4. Use browser terminal to monitor session activity
+# 4. Monitor session activity through browser terminal
 ```
 
 ### LLM-Assisted Recovery Example
