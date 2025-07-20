@@ -65,7 +65,19 @@ export class PromptDetector {
     
     // Check learned patterns first (highest priority)
     for (const learnedPattern of learnedPatterns) {
-      if (cleanLine.includes(learnedPattern)) {
+      // Try to treat pattern as regex first, fallback to literal string match
+      let matched = false;
+      try {
+        const regex = new RegExp(learnedPattern);
+        matched = regex.test(cleanLine);
+        console.log(`[DEBUG PromptDetector] Testing learned regex pattern /${learnedPattern}/ against "${cleanLine}". Result: ${matched}`);
+      } catch (e) {
+        // If regex is invalid, fallback to literal string match
+        matched = cleanLine.includes(learnedPattern);
+        console.log(`[DEBUG PromptDetector] Learned pattern "${learnedPattern}" treated as literal string. Match result: ${matched}`);
+      }
+      
+      if (matched) {
         console.log(`[DEBUG PromptDetector] Matched learned pattern "${learnedPattern}" in line "${cleanLine}"`);
         return {
           detected: true,
