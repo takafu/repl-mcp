@@ -445,7 +445,7 @@ function setupWebServer() {
   
   // Route for session pages
   app.get('/session/:sessionId', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../public/index.html'));
+    res.sendFile(path.join(__dirname, '../public/session.html'));
   });
   
   const httpServer = createServer(app);
