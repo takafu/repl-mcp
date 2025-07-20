@@ -116,18 +116,12 @@ Add to your MCP settings file:
 
 ### `create_repl_session`
 
-Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI. Please show the webUrl to the user so they can open it in their browser.
+Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI.
 
 **Parameters:**
 
 - `configName` (optional): Name of predefined configuration
 - `customConfig` (optional): Custom configuration object
-
-**Response includes:**
-
-- `sessionId`: Unique session identifier (6-character format)
-- `webUrl`: Browser URL for session monitoring
-- `config`: Configuration name used
 
 **Example:**
 
@@ -146,6 +140,12 @@ Response:
   "webUrl": "http://localhost:8023/session/abc123"
 }
 ```
+
+**Response includes:**
+
+- `sessionId`: Unique session identifier (6-character format)
+- `webUrl`: Browser URL for session monitoring
+- `config`: Configuration name used
 
 ### `execute_repl_command`
 
@@ -446,8 +446,6 @@ This will start TypeScript in watch mode for development.
 ## Troubleshooting
 
 ### Common Issues
-
-#### Traditional Issues
 
 1. **Session creation fails**: Check that the required REPL command is installed and accessible
 2. **Commands timeout consistently**: Increase timeout value or check REPL responsiveness
