@@ -391,8 +391,8 @@ Please respond with one of:
     // node-pty's spawn returns a PtyProcess
     return nodePty.spawn(shellCommand, shellArgs, {
       name: 'xterm-color',
-      cols: 80,
-      rows: 30,
+      cols: 132,
+      rows: 43,
       cwd: startingDir,
       env: { ...env, TERM: 'xterm' } as { [key: string]: string }, // Cast to string dictionary
       encoding: 'utf8',
@@ -405,8 +405,8 @@ Please respond with one of:
   private createServerSideTerminal(sessionId: string): void {
     // Create server-side xterm.js instance
     const terminal = new Terminal({
-      cols: 80,
-      rows: 30,
+      cols: 132,
+      rows: 43,
       allowProposedApi: true // Required for some addons
     });
 

@@ -507,7 +507,20 @@ function setupWebServer() {
   
     // WebSocket input → pty
     ws.on('message', (msg: Buffer) => {
-      ptyProcess.write(msg.toString());
+      const message = msg.toString();
+      
+      try {
+        // Try to parse as JSON for control messages
+        const data = JSON.parse(message);
+        if (data.type === 'resize' && data.cols && data.rows) {
+          console.error(`Resizing terminal for session ${sessionId} to ${data.cols}x${data.rows}`);
+          ptyProcess.resize(data.cols, data.rows);
+          return;
+        }
+      } catch (e) {
+        // Regular text data
+        ptyProcess.write(message);
+      }
     });
   
     ws.on('close', () => {

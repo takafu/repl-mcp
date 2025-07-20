@@ -1,4 +1,9 @@
-const term = new Terminal();
+// Terminal configuration with improved settings
+const term = new Terminal({
+  cols: 132,
+  rows: 43
+});
+
 term.open(document.getElementById('terminal'));
 
 // Extract sessionId from URL path
