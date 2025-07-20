@@ -438,6 +438,11 @@ function setupWebServer() {
   // Serve static files from public/ at root level  
   app.use(express.static(path.join(__dirname, '../public')));
   
+  // Route for root page (server status)
+  app.get('/', (_req, res) => {
+    res.sendFile(path.join(__dirname, '../public/index.html'));
+  });
+  
   // Route for session pages
   app.get('/session/:sessionId', (_req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));

@@ -2,21 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>REPL MCP xterm.js Terminal</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
-  <style>body { margin: 0; background: #222; } #terminal { height: 100vh; width: 100vw; }</style>
-  <script>
-    // Extract sessionId from URL path and update title
-    const titlePathSegments = window.location.pathname.split('/');
-    const titleSessionId = titlePathSegments[2]; // /session/SESSION_ID
-    if (titleSessionId) {
-      document.title = `REPL MCP Terminal - ${titleSessionId}`;
+  <title>REPL MCP</title>
+  <style>
+    body { 
+      margin: 0; 
+      background: #222; 
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
     }
-  </script>
+    .container {
+      max-width: 600px;
+      padding: 20px;
+    }
+    h1 {
+      color: #4CAF50;
+      margin-bottom: 20px;
+    }
+    .message {
+      color: #ccc;
+      line-height: 1.6;
+    }
+    .url {
+      color: #2196F3;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-  <div id="terminal"></div>
-  <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
-  <script src="/main.js"></script>
+  <div class="container">
+    <h1>REPL MCP Server</h1>
+    <div class="message">
+      Server is running successfully!<br>
+      Use <span class="url">http://localhost:8023/session/YOUR_SESSION_ID</span> to access a specific session.
+    </div>
+  </div>
 </body>
 </html> 
