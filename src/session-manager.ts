@@ -578,7 +578,7 @@ Please respond with one of:
   }
 
   private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    return Math.random().toString(36).substring(2, 8);
   }
 
   private async waitForPromptWithLLMFallback(sessionId: string, timeout: number): Promise<CommandResult> {
