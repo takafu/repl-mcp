@@ -30,7 +30,6 @@ repl-mcp includes an integrated Web UI that provides browser-based terminal acce
 - **Direct Session Access**: Open session URLs in your browser for direct terminal interaction
 - **Real-time Terminal**: Full xterm.js terminal with real-time input/output
 - **Session Management**: View and manage all active sessions through the web interface
-- **Responsive Design**: Terminal adapts to browser window size
 - **Cross-Platform**: Works on any device with a modern web browser
 
 ### Web UI Usage
