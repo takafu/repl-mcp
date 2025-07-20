@@ -13,7 +13,6 @@ Working with remote REPLs (like Rails console on production servers) often force
 - **Multiple REPL Support**: Python, IPython, Node.js, Ruby (pry, irb), bash, zsh
 - **Session Management**: Create, execute commands, and destroy REPL sessions
 - **Web UI Integration**: Browser-based terminal access for direct session interaction
-- **Dynamic Port Selection**: Automatically finds available ports starting from 8023
 - **Customizable Setup**: Configure setup commands and environment variables
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
@@ -21,8 +20,6 @@ Working with remote REPLs (like Rails console on production servers) often force
 
 - **Timeout Recovery**: LLM assistance when commands timeout
 - **Session Learning**: Remembers prompt patterns within sessions
-- **Responsive Terminal**: 132x43 terminal size for better application compatibility
-- **Session URL Sharing**: Easy sharing of session URLs for browser access
 
 ## Web UI Features
 
@@ -476,13 +473,6 @@ This will start TypeScript in watch mode for development.
 
 - **Custom prompts**: Use `READY:pattern` to teach the system your prompt when timeouts occur
 - **Nested environments**: Use `WAIT:seconds` for environments that need time to settle
-
-#### Web UI Best Practices
-
-- **Session sharing**: Share webUrl with team members for collaborative debugging
-- **Browser compatibility**: Use modern browsers (Chrome, Firefox, Safari, Edge)
-- **Direct interaction**: Use browser terminal for complex interactive sessions
-- **Multiple sessions**: Open multiple browser tabs for different sessions
 
 #### Performance Tips
 
