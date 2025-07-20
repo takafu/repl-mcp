@@ -25,10 +25,10 @@ Working with remote REPLs (like Rails console on production servers) often force
 
 ### Browser-Based Terminal Access
 
-repl-mcp includes an integrated Web UI that provides browser-based terminal access to your REPL sessions:
+repl-mcp includes an integrated Web UI that provides browser-based monitoring and observation of your REPL sessions:
 
-- **Direct Session Access**: Open session URLs in your browser for direct terminal interaction
-- **Real-time Terminal**: Full xterm.js terminal with real-time input/output
+- **Session Monitoring**: Open session URLs in your browser to monitor session activity
+- **Real-time Terminal**: Full xterm.js terminal with real-time input/output observation
 - **Session Management**: View and manage all active sessions through the web interface
 - **Cross-Platform**: Works on any device with a modern web browser
 
@@ -37,12 +37,12 @@ repl-mcp includes an integrated Web UI that provides browser-based terminal acce
 1. **Create a Session**: Use MCP tools to create a REPL session
 2. **Get Session URL**: The response includes a `webUrl` field
 3. **Open in Browser**: Copy the URL and open it in your browser
-4. **Direct Interaction**: Use the browser terminal for direct session interaction
+4. **Monitor Activity**: Use the browser terminal to monitor session activity and observe real-time output
 
 ### Web UI URLs
 
 - **Root URL**: `http://localhost:8023/` - Shows server status and basic information
-- **Session URL**: `http://localhost:8023/session/SESSION_ID` - Direct terminal access to a specific session
+- **Session URL**: `http://localhost:8023/session/SESSION_ID` - Monitor and observe a specific session
 
 ### Dynamic Port Selection
 
@@ -126,7 +126,7 @@ Create a new REPL session with predefined or custom configuration. Returns a web
 **Response includes:**
 
 - `sessionId`: Unique session identifier (6-character format)
-- `webUrl`: Browser URL for direct terminal access
+- `webUrl`: Browser URL for session monitoring
 - `config`: Configuration name used
 
 **Example:**
@@ -206,7 +206,7 @@ Get detailed information about a specific session. Includes webUrl for browser a
 **Response includes:**
 
 - `session`: Detailed session information
-- `webUrl`: Browser URL for direct terminal access
+- `webUrl`: Browser URL for session monitoring
 
 ### `destroy_repl_session`
 
@@ -325,14 +325,14 @@ Response:
 
 1. Create a session and get the webUrl
 2. Open the webUrl in your browser
-3. Use the browser terminal for direct interaction
+3. Use the browser terminal to monitor session activity
 
 Example workflow:
 ```bash
 # 1. Create session via MCP
 # 2. Copy webUrl from response
 # 3. Open in browser: http://localhost:8023/session/xyz789
-# 4. Use browser terminal for direct interaction
+# 4. Use browser terminal to monitor session activity
 ```
 
 ### LLM-Assisted Recovery Example
@@ -362,7 +362,7 @@ Each session maintains:
 - **Last output and errors**: Most recent execution results
 - **Creation and activity timestamps**: Session lifecycle tracking
 - **Learned prompt patterns**: Custom patterns discovered through LLM assistance
-- **Web UI access**: Browser URL for direct terminal interaction
+- **Web UI access**: Browser URL for session monitoring
 
 ### Session Lifecycle
 
