@@ -36,7 +36,7 @@ repl-mcp includes an integrated Web UI that provides browser-based monitoring an
 
 1. **Create a Session**: Use MCP tools to create a REPL session
 2. **Get Session URL**: The response includes a `webUrl` field
-3. **Open in Browser**: Copy the URL and open it in your browser
+3. **Open in Browser**: Open the URL in your browser (e.g., using Playwright MCP or manually)
 4. **Monitor Activity**: Observe session activity and real-time output through the browser terminal
 
 ### Web UI URLs
@@ -116,7 +116,7 @@ Add to your MCP settings file:
 
 ### `create_repl_session`
 
-Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI.
+Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to monitor the session via Web UI.
 
 **Parameters:**
 
@@ -188,7 +188,7 @@ When timeout occurs, the response may include an LLM question:
 
 ### `list_repl_sessions`
 
-List all active REPL sessions. Each session includes a webUrl for browser access. Please show the webUrls to the user so they can open sessions in their browser.
+List all active REPL sessions. Each session includes a webUrl for browser access.
 
 **Response includes:**
 
@@ -197,7 +197,7 @@ List all active REPL sessions. Each session includes a webUrl for browser access
 
 ### `get_session_details`
 
-Get detailed information about a specific session. Includes webUrl for browser access. Please show the webUrl to the user so they can open the session in their browser.
+Get detailed information about a specific session. Includes webUrl for browser access.
 
 **Parameters:**
 
@@ -330,8 +330,9 @@ Response:
 Example workflow:
 ```bash
 # 1. Create session via MCP
-# 2. Copy webUrl from response
+# 2. Get webUrl from response  
 # 3. Open in browser: http://localhost:8023/session/xyz789
+#    (manually or using tools like Playwright MCP)
 # 4. Monitor session activity through browser terminal
 ```
 
