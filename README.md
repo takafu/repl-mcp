@@ -302,9 +302,10 @@ Response:
 To monitor a session, create it using MCP tools and open the `webUrl` from the response in a browser. This allows you to observe real-time terminal activity.
 
 **Example Workflow:**
-1.  **Create session** via MCP to get a `webUrl`.
-2.  **Open URL** in a browser (e.g., `http://localhost:8023/session/xyz789`), manually or using automation tools like Playwright MCP.
-3.  **Observe** the live terminal.
+
+1. **Create session** via MCP to get a `webUrl`.
+2. **Open URL** in a browser (e.g., `http://localhost:8023/session/xyz789`), manually or using automation tools like Playwright MCP.
+3. **Observe** the live terminal.
 
 ### LLM-Assisted Recovery Example
 
