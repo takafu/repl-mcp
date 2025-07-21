@@ -24,7 +24,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
   cmd_test: {
     name: 'CMD Test',
     type: 'cmd',
-    shell: 'cmd.exe',
+    shell: 'cmd',
     commands: [],
     timeout: 10000
   },
@@ -78,7 +78,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
 
   bash: {
     name: 'Bash Shell',
-    type: 'custom',
+    type: 'bash',
     shell: 'bash',
     commands: [],
     timeout: 30000
@@ -86,21 +86,9 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
 
   zsh: {
     name: 'Zsh Shell',
-    type: 'custom',
+    type: 'zsh',
     shell: 'zsh',
-    commands: [
-      'export STARSHIP_CONFIG=/dev/null',
-      'unset STARSHIP_SHELL',
-      'export PS1=\'%% \'',
-      'export PROMPT=\'%% \'',
-      'unset RPROMPT',
-      'unset RPS1',
-      'unset precmd_functions',
-      'unset preexec_functions'
-    ],
-    environment: {
-      'STARSHIP_CONFIG': '/dev/null'
-    },
+    commands: [],
     timeout: 30000
   }
 };
@@ -120,11 +108,12 @@ export function createCustomConfig(
   startingDirectory?: string,
   environment?: Record<string, string>,
   promptPattern?: string,
-  timeout?: number
+  timeout?: number,
+  type?: REPLConfig['type']  // 明示的なtype指定を追加
 ): REPLConfig {
   return {
     name,
-    type: 'custom', // Custom type for dynamically created configs
+    type: type || 'custom',  // 指定されたtype、または'custom'をデフォルト
     shell,
     commands,
     startingDirectory,

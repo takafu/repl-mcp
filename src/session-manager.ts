@@ -5,15 +5,24 @@ import { PromptDetector } from './prompt-detector.js';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
+import pkg from '@xterm/xterm';
+import serializePkg from '@xterm/addon-serialize';
+const Terminal = pkg.Terminal;
+const SerializeAddon = serializePkg.SerializeAddon;
 
 export class SessionManager {
   private sessions: Map<string, SessionState> = new Map();
-  private outputBuffers: Map<string, string> = new Map(); // Complete output buffers
+  private outputBuffers: Map<string, string> = new Map(); // Complete output buffers (cleared before each command)
   private sessionLogs: Map<string, string[]> = new Map(); // Session-specific logs
   private globalLogs: string[] = []; // Global logs (server events)
+  private serverTerminals: Map<string, any> = new Map(); // Server-side xterm.js instances
+  private serializeAddons: Map<string, any> = new Map(); // Serialize addons for each terminal
   private readonly MAX_LOGS_PER_SESSION = 50; // Limit logs per session
   private readonly MAX_GLOBAL_LOGS = 100; // Limit global logs
   private readonly MAX_OUTPUT_SIZE = 50 * 1024; // 50KB limit for MCP responses
+  private readonly MAX_HISTORY_SIZE = 10; // Limit history to last 10 commands
+
+
 
   private truncateForMCPResponse(output: string): string {
     if (output.length <= this.MAX_OUTPUT_SIZE) {
@@ -120,6 +129,8 @@ export class SessionManager {
     };
   }
 
+
+
   public async createSession(config: REPLConfig): Promise<SessionCreationResult> {
     const sessionId = this.generateSessionId();
     const startingDir = config.startingDirectory || process.cwd();
@@ -169,6 +180,16 @@ export class SessionManager {
       this.log(`[DEBUG ${sessionId}] Creating shell process`, sessionId);
       const shellProcess = this.createShellProcess(config, startingDir);
       sessionState.process = shellProcess;
+
+      // Send zsh-specific initialization immediately after process creation
+      if (config.shell === 'zsh') {
+        this.log(`[DEBUG ${sessionId}] Sending histchars initialization for zsh`, sessionId);
+        shellProcess.write('histchars=\r\n');
+      }
+
+      // Create server-side terminal
+      this.log(`[DEBUG ${sessionId}] Creating server-side terminal`, sessionId);
+      this.createServerSideTerminal(sessionId);
 
       // Setup output handlers
       this.log(`[DEBUG ${sessionId}] Setting up output handlers`, sessionId);
@@ -278,7 +299,7 @@ Please respond with one of:
     const startTime = Date.now();
 
     try {
-      // Clear output buffer
+      // Clear output buffer before sending command
       this.outputBuffers.set(sessionId, '');
 
       // Send command
@@ -290,19 +311,25 @@ Please respond with one of:
         // Return LLM question without updating session state
         return result;
       }
-      const output = result.output!;
+            const output = result.rawOutput!;
       
       const executionTime = Date.now() - startTime;
       const isError = PromptDetector.isErrorOutput(output, session.config.type);
 
       session.status = 'ready';
       session.history.push(command);
+      
+      // Limit history to last MAX_HISTORY_SIZE commands
+      if (session.history.length > this.MAX_HISTORY_SIZE) {
+        session.history = session.history.slice(-this.MAX_HISTORY_SIZE);
+      }
+      
       session.lastOutput = output;
       session.lastActivity = new Date();
 
       return {
         success: !isError,
-        output: this.truncateForMCPResponse(output.trim()),
+        rawOutput: this.truncateForMCPResponse(output.trim()),
         error: isError ? this.truncateForMCPResponse(output.trim()) : undefined,
         executionTime
       };
@@ -312,7 +339,7 @@ Please respond with one of:
       
       return {
         success: false,
-        output: '',
+        rawOutput: '',
         error: error instanceof Error ? error.message : String(error),
         executionTime: Date.now() - startTime
       };
@@ -344,6 +371,8 @@ Please respond with one of:
     this.sessions.delete(sessionId);
     this.outputBuffers.delete(sessionId);
     this.sessionLogs.delete(sessionId); // Clean up session-specific logs
+    this.serverTerminals.delete(sessionId); // Clean up server-side terminal
+    this.serializeAddons.delete(sessionId); // Clean up serialize addon
     
     return true;
   }
@@ -379,8 +408,8 @@ Please respond with one of:
     // node-pty's spawn returns a PtyProcess
     return nodePty.spawn(shellCommand, shellArgs, {
       name: 'xterm-color',
-      cols: 80,
-      rows: 30,
+      cols: 132,
+      rows: 43,
       cwd: startingDir,
       env: { ...env, TERM: 'xterm' } as { [key: string]: string }, // Cast to string dictionary
       encoding: 'utf8',
@@ -390,12 +419,92 @@ Please respond with one of:
     });
   }
 
+  private createServerSideTerminal(sessionId: string): void {
+    // Create server-side xterm.js instance
+    const terminal = new Terminal({
+      cols: 132,
+      rows: 43,
+      allowProposedApi: true // Required for some addons
+    });
+
+    // Create and load SerializeAddon
+    const serializeAddon = new SerializeAddon();
+    terminal.loadAddon(serializeAddon);
+
+    // Store references
+    this.serverTerminals.set(sessionId, terminal);
+    this.serializeAddons.set(sessionId, serializeAddon);
+
+    this.log(`[DEBUG ${sessionId}] Server-side terminal created`, sessionId);
+  }
+
+  public getSerializedTerminalState(sessionId: string): string | null {
+    const serializeAddon = this.serializeAddons.get(sessionId);
+    if (!serializeAddon) {
+      return null;
+    }
+    
+    try {
+      return serializeAddon.serialize();
+    } catch (error) {
+      this.log(`[ERROR ${sessionId}] Failed to serialize terminal state: ${error}`, sessionId);
+      return null;
+    }
+  }
+
+  public getCurrentLineCleanText(sessionId: string): string | null {
+    const terminal = this.serverTerminals.get(sessionId);
+    if (!terminal) {
+      return null;
+    }
+    
+    try {
+      // Get the current line (where cursor is) as clean text (without ANSI codes)
+      return terminal.buffer.active.getLine(terminal.buffer.active.baseY + terminal.buffer.active.cursorY)?.translateToString() || '';
+    } catch (error) {
+      this.log(`[ERROR ${sessionId}] Failed to get current line clean text: ${error}`, sessionId);
+      return null;
+    }
+  }
+
+  public getFullCleanText(sessionId: string): string | null {
+    const terminal = this.serverTerminals.get(sessionId);
+    if (!terminal) {
+      return null;
+    }
+    
+    try {
+      // Get all visible lines as clean text
+      const lines: string[] = [];
+      for (let i = 0; i < terminal.buffer.active.length; i++) {
+        const line = terminal.buffer.active.getLine(i);
+        if (line) {
+          const text = line.translateToString();
+          if (text.trim()) {
+            lines.push(text);
+          }
+        }
+      }
+      return lines.join('\n');
+    } catch (error) {
+      this.log(`[ERROR ${sessionId}] Failed to get full clean text: ${error}`, sessionId);
+      return null;
+    }
+  }
+
   private setupOutputHandlers(sessionId: string, process: nodePty.IPty): void {
+    const serverTerminal = this.serverTerminals.get(sessionId);
+    
     const appendOutput = (data: string) => {
       // Always append to output buffer (complete output, no truncation during collection)
       const currentBuffer = this.outputBuffers.get(sessionId) || '';
       const newBuffer = currentBuffer + data;
       this.outputBuffers.set(sessionId, newBuffer);
+      
+      // Also send to server-side terminal for proper ANSI processing
+      if (serverTerminal) {
+        serverTerminal.write(data);
+      }
     };
 
     // node-pty uses onData method instead of 'data' event
@@ -486,6 +595,8 @@ Please respond with one of:
 
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
+      const initialOutputLength = (this.outputBuffers.get(sessionId) || '').length;
+      let hasSeenOutput = false;
       
       const checkPrompt = () => {
         if (Date.now() - startTime > timeout) {
@@ -494,28 +605,33 @@ Please respond with one of:
           return;
         }
 
-        const output = this.outputBuffers.get(sessionId) || '';
+        const currentOutput = this.outputBuffers.get(sessionId) || '';
         
-        // Debug logging before prompt detection
-        this.log(`[DEBUG ${sessionId}] Testing prompt detection with expectedType: ${session.config.type}`, sessionId);
-        this.log(`[DEBUG ${sessionId}] Output length: ${output.length}`, sessionId);
-        
-        if (output.length > 0) {
-          const lines = output.replace(/\r\n/g, '\n').split('\n').filter(line => line.trim());
-          const lastLine = lines.length > 0 ? lines[lines.length - 1] : '';
-          this.log(`[DEBUG ${sessionId}] Last line: "${lastLine}"`, sessionId);
+        // Check if we've seen new output since command was sent
+        if (currentOutput.length > initialOutputLength) {
+          hasSeenOutput = true;
         }
-        
-        const promptInfo = PromptDetector.detectPrompt(output, session.config.type, session.learnedPromptPatterns);
-        
-        // Debug logging for troubleshooting
-        if (output.length > 0) {
-          this.log(`[DEBUG ${sessionId}] Output: "${output}"`, sessionId);
-          this.log(`[DEBUG ${sessionId}] Prompt detected: ${promptInfo.detected}, ready: ${promptInfo.ready}, type: ${promptInfo.type}`, sessionId);
+
+        // Use xterm.js clean text for prompt detection
+        const cleanText = this.getCurrentLineCleanText(sessionId);
+        if (cleanText) {
+          this.log(`[DEBUG ${sessionId}] Testing clean text prompt detection: "${cleanText}"`, sessionId);
+          const promptInfo = PromptDetector.detectPrompt(cleanText, session.config.type, session.learnedPromptPatterns, true); // isCleanText = true
+          
+          if (promptInfo.detected && promptInfo.ready && hasSeenOutput) {
+            this.log(`[DEBUG ${sessionId}] Clean text prompt detected: ${promptInfo.type}`, sessionId);
+            resolve(currentOutput);
+            return;
+          }
         }
+
+        // Fallback to raw output if clean text is not available
+        this.log(`[DEBUG ${sessionId}] Testing raw output prompt detection with expectedType: ${session.config.type}`, sessionId);
         
-        if (promptInfo.detected && promptInfo.ready) {
-          resolve(output);
+        const promptInfo = PromptDetector.detectPrompt(currentOutput, session.config.type, session.learnedPromptPatterns, false); // isCleanText = false
+        
+        if (promptInfo.detected && promptInfo.ready && hasSeenOutput) {
+          resolve(currentOutput);
         } else {
           setTimeout(checkPrompt, 100);
         }
@@ -526,7 +642,7 @@ Please respond with one of:
   }
 
   private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    return Math.random().toString(36).substring(2, 8);
   }
 
   private async waitForPromptWithLLMFallback(sessionId: string, timeout: number): Promise<CommandResult> {
@@ -534,7 +650,7 @@ Please respond with one of:
       const output = await this.waitForPrompt(sessionId, timeout);
       return {
         success: true,
-        output,
+        rawOutput: output,
         executionTime: 0
       };
     } catch (error) {
@@ -564,7 +680,7 @@ What should I do?`;
 
     return {
       success: false,
-      output: '',
+      rawOutput: '',
       error: 'Timeout - LLM guidance needed',
       executionTime: 0,
       question,
@@ -595,7 +711,7 @@ What should I do?`;
         this.log(`[DEBUG ${sessionId}] LLM declared session ready with pattern: ${learnedPattern}`, sessionId);
         return {
           success: true,
-          output: this.outputBuffers.get(sessionId) || '',
+          rawOutput: this.outputBuffers.get(sessionId) || '',
           executionTime: 0
         };
 
@@ -611,7 +727,7 @@ What should I do?`;
           session.status = 'ready';
           return {
             success: true,
-            output,
+            rawOutput: output,
             executionTime: 0
           };
         } catch (error) {
@@ -632,7 +748,7 @@ What should I do?`;
           session.status = 'ready';
           return {
             success: true,
-            output,
+            rawOutput: output,
             executionTime: seconds * 1000
           };
         } catch (error) {
@@ -648,7 +764,7 @@ What should I do?`;
         session.lastError = reason;
         return {
           success: false,
-          output: '',
+          rawOutput: '',
           error: reason,
           executionTime: 0
         };
@@ -656,7 +772,7 @@ What should I do?`;
       default:
         return {
           success: false,
-          output: '',
+          rawOutput: '',
           error: `Unknown LLM guidance action: ${response}`,
           executionTime: 0
         };

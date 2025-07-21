@@ -27,7 +27,7 @@ export class PromptDetector {
     python: /^\.\.\.\s*$/m
   };
 
-  public static detectPrompt(output: string, expectedType?: string, learnedPatterns: string[] = []): PromptInfo {
+  public static detectPrompt(output: string, expectedType?: string, learnedPatterns: string[] = [], isCleanText: boolean = false): PromptInfo {
     // Normalize line endings and split
     const lines = output.replace(/\r\n/g, '\n').split('\n');
     if (lines.length === 0) {
@@ -39,15 +39,12 @@ export class PromptDetector {
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i];
       const originalLine = line; // Keep original for logging
-      const cleanLine = PromptDetector.stripAnsiCodes(line).trim(); // Strip ANSI codes and trim
+      const cleanLine = isCleanText ? line.trim() : PromptDetector.stripAnsiCodes(line).trim(); // Strip ANSI codes only if needed
       
       // Skip empty lines after cleaning
       if (!cleanLine) continue;
 
-      // Debug logging for troubleshooting - temporarily enabled
-      console.log(`[DEBUG PromptDetector] Checking line ${i}: "${originalLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`);
-      console.log(`[DEBUG PromptDetector] Cleaned line ${i}: "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`);
-
+      
       // Test this line for prompts (including learned patterns)
       const promptResult = this.testLineForPrompt(cleanLine, expectedType, learnedPatterns);
       if (promptResult.detected) {
@@ -56,8 +53,11 @@ export class PromptDetector {
     }
 
     // If no prompt found, return info about the last non-empty line
-    const lastNonEmptyLine = lines.reverse().find(line => PromptDetector.stripAnsiCodes(line).trim());
-    const cleanLastLine = lastNonEmptyLine ? PromptDetector.stripAnsiCodes(lastNonEmptyLine).trim() : '';
+    const lastNonEmptyLine = lines.reverse().find(line => {
+      const cleaned = isCleanText ? line.trim() : PromptDetector.stripAnsiCodes(line).trim();
+      return cleaned;
+    });
+    const cleanLastLine = lastNonEmptyLine ? (isCleanText ? lastNonEmptyLine.trim() : PromptDetector.stripAnsiCodes(lastNonEmptyLine).trim()) : '';
     return { detected: false, type: 'unknown', ready: false, prompt: cleanLastLine };
   }
 
@@ -65,7 +65,19 @@ export class PromptDetector {
     
     // Check learned patterns first (highest priority)
     for (const learnedPattern of learnedPatterns) {
-      if (cleanLine.includes(learnedPattern)) {
+      // Try to treat pattern as regex first, fallback to literal string match
+      let matched = false;
+      try {
+        const regex = new RegExp(learnedPattern);
+        matched = regex.test(cleanLine);
+        console.log(`[DEBUG PromptDetector] Testing learned regex pattern /${learnedPattern}/ against "${cleanLine}". Result: ${matched}`);
+      } catch (e) {
+        // If regex is invalid, fallback to literal string match
+        matched = cleanLine.includes(learnedPattern);
+        console.log(`[DEBUG PromptDetector] Learned pattern "${learnedPattern}" treated as literal string. Match result: ${matched}`);
+      }
+      
+      if (matched) {
         console.log(`[DEBUG PromptDetector] Matched learned pattern "${learnedPattern}" in line "${cleanLine}"`);
         return {
           detected: true,
@@ -177,5 +189,63 @@ export class PromptDetector {
 
     const patterns = errorPatterns[replType] || errorPatterns.pry;
     return patterns.some(pattern => pattern.test(output));
+  }
+
+  public static extractCommandOutput(fullOutput: string, command: string, replType: string): string {
+    // Strip ANSI codes for easier parsing
+    const cleanOutput = PromptDetector.stripAnsiCodes(fullOutput);
+    
+    // Split into lines
+    const lines = cleanOutput.split('\n');
+    
+    // Find the command echo line
+    let commandLineIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.includes(command.trim())) {
+        commandLineIndex = i;
+        break;
+      }
+    }
+    
+    if (commandLineIndex === -1) {
+      // Command not found in output, return everything minus the last prompt line
+      const withoutLastLine = lines.slice(0, -1);
+      return withoutLastLine.join('\n').trim();
+    }
+    
+    // Extract output between command echo and final prompt
+    const outputLines = [];
+    for (let i = commandLineIndex + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Skip empty lines at the start
+      if (outputLines.length === 0 && !line) continue;
+      
+      // Check if this line looks like a prompt
+      const isPromptLine = this.looksLikePrompt(line, replType);
+      if (isPromptLine) {
+        break; // Stop at the next prompt
+      }
+      
+      outputLines.push(lines[i]);
+    }
+    
+    return outputLines.join('\n').trim();
+  }
+  
+  private static looksLikePrompt(line: string, replType: string): boolean {
+    // Simple prompt detection for output extraction
+    if (replType === 'python') {
+      return line === '>>>' || line.startsWith('>>> ');
+    }
+    if (replType === 'node') {
+      return line === '>' || line.startsWith('> ');
+    }
+    if (replType === 'ipython') {
+      return /^In \[\d+\]:/.test(line);
+    }
+    // Add more patterns as needed
+    return false;
   }
 }
