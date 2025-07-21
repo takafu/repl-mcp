@@ -1,6 +1,6 @@
 # repl-mcp
 
-A simple MCP server for managing REPL sessions. Provides basic tools to create and execute commands in various REPLs and shells, with integrated Web UI for browser-based terminal access.
+A simple MCP server for managing REPL sessions. Provides basic tools to create and execute commands in various REPLs and shells, with an integrated Web UI for browser-based session monitoring.
 
 ## Motivation
 
@@ -21,42 +21,18 @@ Working with remote REPLs (like Rails console on production servers) often force
 - **Timeout Recovery**: LLM assistance when commands timeout
 - **Session Learning**: Remembers prompt patterns within sessions
 
-## Web UI Features
-
 ### Browser-Based Session Monitoring
 
-repl-mcp includes an integrated Web UI that provides browser-based monitoring and observation of your REPL sessions:
-
-- **Session Monitoring**: Open session URLs in your browser to monitor session activity
-- **Real-time Observation**: Full xterm.js terminal for real-time output observation
-- **Session Management**: View and monitor all active sessions through the web interface
-- **Cross-Platform**: Works on any device with a modern web browser
-
-### Web UI Usage
-
-1. **Create a Session**: Use MCP tools to create a REPL session
-2. **Get Session URL**: The response includes a `webUrl` field
-3. **Open in Browser**: Open the URL in your browser (e.g., using Playwright MCP or manually)
-4. **Monitor Activity**: Observe session activity and real-time output through the browser terminal
-
-### Web UI URLs
-
-- **Root URL**: `http://localhost:8023/` - Shows server status and basic information
-- **Session URL**: `http://localhost:8023/session/SESSION_ID` - Monitor and observe a specific session
-
-### Dynamic Port Selection
-
-The Web UI automatically finds available ports:
-- Starts with port 8023
-- If port is in use, tries 8024, 8025, etc.
-- URLs are automatically updated with the correct port
+- **Session URLs**: `http://localhost:8023/session/SESSION_ID` - Monitor sessions in browser
+- **Dynamic Ports**: Auto-selects available ports starting from 8023
+- **Cross-Platform**: Works on any device with modern browser
+- **Real-time**: Live terminal output via WebSocket connection
 
 ## Installation
 
 [![npm version](https://img.shields.io/npm/v/repl-mcp)](https://www.npmjs.com/package/repl-mcp)
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=repl-mcp&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22repl-mcp%40latest%22%5D%7D)  
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=repl-mcp&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInJlcGwtbWNwQGxhdGVzdCJdfQo=)
-
 
 ### VS Code
 
@@ -132,6 +108,7 @@ Create a new REPL session with predefined or custom configuration. Returns a web
 ```
 
 Response:
+
 ```json
 {
   "success": true,
@@ -298,6 +275,7 @@ Patterns identified by LLM are remembered for the session duration to improve su
 ```
 
 Response:
+
 ```json
 {
   "success": true,
@@ -319,22 +297,14 @@ Response:
 }
 ```
 
-### Web UI Usage
+### Web UI Session Monitoring
 
-#### Open Session in Browser
+To monitor a session, create it using MCP tools and open the `webUrl` from the response in a browser. This allows you to observe real-time terminal activity.
 
-1. Create a session and get the webUrl
-2. Open the webUrl in your browser
-3. Monitor session activity through the browser terminal
-
-Example workflow:
-```bash
-# 1. Create session via MCP
-# 2. Get webUrl from response  
-# 3. Open in browser: http://localhost:8023/session/xyz789
-#    (manually or using tools like Playwright MCP)
-# 4. Monitor session activity through browser terminal
-```
+**Example Workflow:**
+1.  **Create session** via MCP to get a `webUrl`.
+2.  **Open URL** in a browser (e.g., `http://localhost:8023/session/xyz789`), manually or using automation tools like Playwright MCP.
+3.  **Observe** the live terminal.
 
 ### LLM-Assisted Recovery Example
 
