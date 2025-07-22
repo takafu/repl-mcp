@@ -47,5 +47,9 @@
   },
   "bin": {
     "repl-mcp": "build/index.js"
-  }
+  },
+  "files": [
+    "build",
+    "public"
+  ]
 }
