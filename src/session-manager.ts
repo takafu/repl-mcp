@@ -34,7 +34,7 @@ export class SessionManager {
            output.slice(-keepSize);
   }
 
-  private log(message: string, sessionId?: string) {
+  public log(message: string, sessionId?: string) {
     const timestamp = new Date().toISOString();
     const logEntry = `${timestamp}: ${message}`;
     

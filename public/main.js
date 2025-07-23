@@ -35,6 +35,7 @@ if (!sessionId) {
 
   // Send user input to server
   term.onData(data => {
+    console.log('Input data:', data, 'char codes:', [...data].map(c => c.charCodeAt(0)));
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(data);
     }

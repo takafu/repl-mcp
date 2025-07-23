@@ -507,12 +507,28 @@ function setupWebServer() {
   
   // Route for root page (server status)
   app.get('/', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../public/index.html'));
+    const indexPath = path.resolve(__dirname, '../public/index.html');
+    try {
+      const fileContent = readFileSync(indexPath, 'utf8');
+      res.setHeader('Content-Type', 'text/html');
+      res.send(fileContent);
+    } catch (err) {
+      console.error(`Error reading file: ${indexPath}`, err);
+      res.status(500).send('Internal Server Error');
+    }
   });
   
   // Route for session pages
   app.get('/session/:sessionId', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../public/session.html'));
+    const sessionPath = path.resolve(__dirname, '../public/session.html');
+    try {
+      const fileContent = readFileSync(sessionPath, 'utf8');
+      res.setHeader('Content-Type', 'text/html');
+      res.send(fileContent);
+    } catch (err) {
+      console.error(`Error reading file: ${sessionPath}`, err);
+      res.status(500).send('Internal Server Error');
+    }
   });
   
   const httpServer = createServer(app);
@@ -522,6 +538,8 @@ function setupWebServer() {
     // Extract sessionId from URL query
     const parsedUrl = url.parse(req.url || '', true);
     const sessionId = parsedUrl.query.sessionId as string;
+    
+    console.error(`[DEBUG] WebSocket connection established for session: ${sessionId}`);
     
     if (!sessionId) {
       ws.send('Error: sessionId is required\r\n');
@@ -583,18 +601,31 @@ function setupWebServer() {
     // WebSocket input → pty
     ws.on('message', (msg: Buffer) => {
       const message = msg.toString();
+      // Log WebSocket input using the built-in log system
+      sessionManager.log(`WebSocket received: "${message}" (length: ${message.length}, char codes: [${[...message].map(c => c.charCodeAt(0)).join(', ')}])`, sessionId);
       
       try {
         // Try to parse as JSON for control messages
         const data = JSON.parse(message);
-        if (data.type === 'resize' && data.cols && data.rows) {
-          console.error(`Resizing terminal for session ${sessionId} to ${data.cols}x${data.rows}`);
+        if (data && typeof data === 'object' && data.type === 'resize' && data.cols && data.rows) {
+          sessionManager.log(`Resizing terminal to ${data.cols}x${data.rows}`, sessionId);
           ptyProcess.resize(data.cols, data.rows);
           return;
         }
+        // If JSON parse succeeded but it's not a resize command, treat as regular text
+        sessionManager.log(`JSON parsed but not control message, treating as text: "${message}"`, sessionId);
       } catch (e) {
-        // Regular text data
+        // Not JSON, regular text data
+        sessionManager.log(`Not JSON, treating as text: "${message}"`, sessionId);
+      }
+      
+      // Regular text data processing
+      sessionManager.log(`Writing to pty: "${message}" (ptyProcess exists: ${!!ptyProcess})`, sessionId);
+      try {
         ptyProcess.write(message);
+        sessionManager.log(`Successfully wrote to pty: "${message}"`, sessionId);
+      } catch (writeError) {
+        sessionManager.log(`ERROR writing to pty: ${writeError}`, sessionId);
       }
     });
   
