@@ -19,6 +19,16 @@ if (!sessionId) {
 
   ws.onopen = () => {
     term.write(`Connected to session: ${sessionId}\r\n`);
+    
+    // Send initial terminal size
+    const message = {
+      type: 'resize',
+      data: {
+        cols: term.cols,
+        rows: term.rows
+      }
+    };
+    ws.send(JSON.stringify(message));
   };
 
   ws.onmessage = (event) => {
@@ -33,11 +43,39 @@ if (!sessionId) {
     term.write(`WebSocket error: ${error}\r\n`);
   };
 
-  // Send user input to server
+  // Send user input to server using structured message format
   term.onData(data => {
     console.log('Input data:', data, 'char codes:', [...data].map(c => c.charCodeAt(0)));
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(data);
+      // Send structured terminal input message
+      const message = {
+        type: 'terminal_input',
+        data: data
+      };
+      ws.send(JSON.stringify(message));
     }
+  });
+  
+  // Handle terminal resize
+  const sendResize = () => {
+    if (ws.readyState === WebSocket.OPEN) {
+      const message = {
+        type: 'resize',
+        data: {
+          cols: term.cols,
+          rows: term.rows
+        }
+      };
+      ws.send(JSON.stringify(message));
+    }
+  };
+  
+  // Listen for terminal resize events
+  term.onResize(sendResize);
+  
+  // Listen for window resize events
+  window.addEventListener('resize', () => {
+    // Terminal will auto-resize, then send the new size
+    setTimeout(sendResize, 100);
   });
 } 

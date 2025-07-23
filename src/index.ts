@@ -605,27 +605,55 @@ function setupWebServer() {
       sessionManager.log(`WebSocket received: "${message}" (length: ${message.length}, char codes: [${[...message].map(c => c.charCodeAt(0)).join(', ')}])`, sessionId);
       
       try {
-        // Try to parse as JSON for control messages
+        // Parse as structured JSON message
         const data = JSON.parse(message);
-        if (data && typeof data === 'object' && data.type === 'resize' && data.cols && data.rows) {
-          sessionManager.log(`Resizing terminal to ${data.cols}x${data.rows}`, sessionId);
-          ptyProcess.resize(data.cols, data.rows);
-          return;
+        
+        if (data && typeof data === 'object' && data.type) {
+          switch (data.type) {
+            case 'terminal_input':
+              // New structured input format
+              if (typeof data.data === 'string') {
+                sessionManager.log(`Processing terminal input: "${data.data}"`, sessionId);
+                try {
+                  ptyProcess.write(data.data);
+                  sessionManager.log(`Successfully wrote to pty: "${data.data}"`, sessionId);
+                } catch (writeError) {
+                  sessionManager.log(`ERROR writing to pty: ${writeError}`, sessionId);
+                }
+              } else {
+                sessionManager.log(`Invalid terminal_input data type: ${typeof data.data}`, sessionId);
+              }
+              return;
+              
+            case 'resize':
+              // New structured resize format
+              if (data.data && typeof data.data === 'object' && data.data.cols && data.data.rows) {
+                sessionManager.log(`Resizing terminal to ${data.data.cols}x${data.data.rows}`, sessionId);
+                ptyProcess.resize(data.data.cols, data.data.rows);
+              } else {
+                sessionManager.log(`Invalid resize data format`, sessionId);
+              }
+              return;
+              
+            default:
+              sessionManager.log(`Unknown message type: ${data.type}`, sessionId);
+              return;
+          }
         }
-        // If JSON parse succeeded but it's not a resize command, treat as regular text
-        sessionManager.log(`JSON parsed but not control message, treating as text: "${message}"`, sessionId);
-      } catch (e) {
-        // Not JSON, regular text data
-        sessionManager.log(`Not JSON, treating as text: "${message}"`, sessionId);
-      }
-      
-      // Regular text data processing
-      sessionManager.log(`Writing to pty: "${message}" (ptyProcess exists: ${!!ptyProcess})`, sessionId);
-      try {
+        
+        // Legacy fallback: if JSON but no type field, treat as regular text (for backward compatibility)
+        sessionManager.log(`Legacy format detected, treating as text: "${message}"`, sessionId);
         ptyProcess.write(message);
-        sessionManager.log(`Successfully wrote to pty: "${message}"`, sessionId);
-      } catch (writeError) {
-        sessionManager.log(`ERROR writing to pty: ${writeError}`, sessionId);
+        
+      } catch (e) {
+        // Not JSON, treat as legacy plain text input (for backward compatibility)
+        sessionManager.log(`Not JSON, treating as legacy text: "${message}"`, sessionId);
+        try {
+          ptyProcess.write(message);
+          sessionManager.log(`Successfully wrote legacy text to pty: "${message}"`, sessionId);
+        } catch (writeError) {
+          sessionManager.log(`ERROR writing legacy text to pty: ${writeError}`, sessionId);
+        }
       }
     });
   
