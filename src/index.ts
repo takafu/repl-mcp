@@ -641,19 +641,12 @@ function setupWebServer() {
           }
         }
         
-        // Legacy fallback: if JSON but no type field, treat as regular text (for backward compatibility)
-        sessionManager.log(`Legacy format detected, treating as text: "${message}"`, sessionId);
-        ptyProcess.write(message);
+        // Invalid JSON structure - missing or invalid type field
+        sessionManager.log(`Invalid message format - missing or invalid type field: "${message}"`, sessionId);
         
       } catch (e) {
-        // Not JSON, treat as legacy plain text input (for backward compatibility)
-        sessionManager.log(`Not JSON, treating as legacy text: "${message}"`, sessionId);
-        try {
-          ptyProcess.write(message);
-          sessionManager.log(`Successfully wrote legacy text to pty: "${message}"`, sessionId);
-        } catch (writeError) {
-          sessionManager.log(`ERROR writing legacy text to pty: ${writeError}`, sessionId);
-        }
+        // Invalid JSON format
+        sessionManager.log(`Invalid JSON format: "${message}", error: ${e}`, sessionId);
       }
     });
   
