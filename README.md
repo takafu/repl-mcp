@@ -124,44 +124,30 @@ Response:
 - `webUrl`: Browser URL for session monitoring
 - `config`: Configuration name used
 
-### `execute_repl_command`
+### `send_input_to_session`
 
-Execute a command in an existing REPL session.
+Send input to a REPL session.
 
 **Parameters:**
 
 - `sessionId`: The session ID
-- `command`: Command to execute
-- `timeout` (optional): Timeout in milliseconds (default: 30000)
+- `input`: Input text to send to the session
+- `options` (optional): Input options object
+  - `wait_for_prompt` (default: false): Wait for prompt to return
+  - `timeout` (default: 30000): Timeout in milliseconds
+  - `add_newline` (default: true): Add newline to input
 
 **Example:**
 
 ```json
 {
   "sessionId": "abc123",
-  "command": "puts 'Hello, World!'"
+  "input": "puts 'Hello, World!'",
+  "options": {
+    "wait_for_prompt": true
+  }
 }
 ```
-
-**Response with LLM Question:**
-
-When timeout occurs, the response may include an LLM question:
-
-```json
-{
-  "success": false,
-  "question": "Session timed out. Raw output: '❯ '. What should I do?",
-  "questionType": "timeout_analysis",
-  "canContinue": true
-}
-```
-
-**How to respond:** Use `answer_session_question` with one of these formats:
-
-- `READY:❯` - The prompt "❯" is ready for commands
-- `SEND:\n` - Send Enter key (use `\x03` for Ctrl+C)
-- `WAIT:5` - Wait 5 more seconds for completion
-- `FAILED:reason` - Mark the session as failed
 
 ### `list_repl_sessions`
 
@@ -197,25 +183,75 @@ Destroy an existing REPL session.
 
 List all available predefined REPL configurations.
 
-### `answer_session_question`
+### `send_signal_to_session`
 
-Answer a question from session creation or command execution during LLM-assisted recovery.
+Send a signal (like Ctrl+C, Ctrl+Z) to interrupt or control a REPL session process.
 
 **Parameters:**
 
 - `sessionId`: The session ID
-- `answer`: LLM guidance response in one of these formats:
-  - `READY:pattern` - Specify the detected prompt pattern (e.g., `READY:❯` means "❯" is the prompt)
-  - `SEND:command` - Send specific input (e.g., `SEND:\n` for Enter, `SEND:\x03` for Ctrl+C)
-  - `WAIT:seconds` - Wait longer for completion (e.g., `WAIT:10`)
-  - `FAILED:reason` - Mark session as failed with explanation
+- `signal`: Signal to send (`SIGINT`, `SIGTSTP`, `SIGQUIT`, `SIGKILL`, `SIGTERM`)
 
 **Example:**
 
 ```json
 {
   "sessionId": "abc123",
-  "answer": "READY:∙"
+  "signal": "SIGINT"
+}
+```
+
+### `set_session_ready`
+
+Mark a session as ready with a specific prompt pattern. Used during session recovery.
+
+**Parameters:**
+
+- `sessionId`: The session ID
+- `pattern`: Prompt pattern (regex or literal string)
+
+**Example:**
+
+```json
+{
+  "sessionId": "abc123",
+  "pattern": "❯ "
+}
+```
+
+### `wait_for_session`
+
+Wait additional time for a session to become ready.
+
+**Parameters:**
+
+- `sessionId`: The session ID
+- `seconds`: Number of seconds to wait
+
+**Example:**
+
+```json
+{
+  "sessionId": "abc123",
+  "seconds": 5
+}
+```
+
+### `mark_session_failed`
+
+Mark a session as failed with a reason.
+
+**Parameters:**
+
+- `sessionId`: The session ID
+- `reason`: Reason for failure
+
+**Example:**
+
+```json
+{
+  "sessionId": "abc123",
+  "reason": "Process crashed"
 }
 ```
 
@@ -241,23 +277,16 @@ Answer a question from session creation or command execution during LLM-assisted
 - **rails_console**: Rails console with bundle exec
 - **rails_console_production**: Production Rails console
 
-## LLM-Assisted Recovery
+## Session Recovery
 
-### How It Works
+When sessions timeout or become unresponsive, you can use recovery tools:
 
-When command execution times out, the server can request LLM assistance:
+- **`send_signal_to_session`** - Send Ctrl+C, Ctrl+Z, or other signals to interrupt processes
+- **`set_session_ready`** - Mark session ready when you detect a working prompt
+- **`wait_for_session`** - Wait longer for slow commands to complete
+- **`mark_session_failed`** - Mark session as failed when recovery isn't possible
 
-1. **Captures Raw Output**: Collects terminal output for analysis
-2. **LLM Analysis**: LLM examines the output and provides guidance
-3. **Response Types**: Four response patterns for different situations:
-   - `READY:pattern` - Prompt detected, specify the pattern
-   - `SEND:command` - Send a specific command (e.g., `\n` for Enter)
-   - `WAIT:seconds` - Wait longer for command completion
-   - `FAILED:reason` - Mark as failure with explanation
-
-### Session Learning
-
-Patterns identified by LLM are remembered for the session duration to improve subsequent command performance.
+Prompt patterns learned during recovery are remembered for the session duration.
 
 ## Usage Examples
 
@@ -289,10 +318,13 @@ Response:
 
 ```json
 {
-  "tool": "execute_repl_command",
+  "tool": "send_input_to_session",
   "arguments": {
     "sessionId": "xyz789",
-    "command": "print('Hello from REPL!')"
+    "input": "print('Hello from REPL!')",
+    "options": {
+      "wait_for_prompt": true
+    }
   }
 }
 ```
@@ -307,21 +339,31 @@ To monitor a session, create it using MCP tools and open the `webUrl` from the r
 2. **Open URL** in a browser (e.g., `http://localhost:8023/session/xyz789`), manually or using automation tools like Playwright MCP.
 3. **Observe** the live terminal.
 
-### LLM-Assisted Recovery Example
+### Session Recovery Example
 
-When a command times out, you can use LLM assistance:
+When a command times out or hangs, you can recover the session:
 
+**Interrupt with Ctrl+C:**
 ```json
 {
-  "tool": "answer_session_question",
+  "tool": "send_signal_to_session",
   "arguments": {
     "sessionId": "xyz789",
-    "answer": "READY:❯"
+    "signal": "SIGINT"
   }
 }
 ```
 
-The session will remember this pattern for future commands.
+**Mark session ready:**
+```json
+{
+  "tool": "set_session_ready",
+  "arguments": {
+    "sessionId": "xyz789",
+    "pattern": "❯ "
+  }
+}
+```
 
 ## Session Management
 
@@ -430,18 +472,19 @@ This will start TypeScript in watch mode for development.
 3. **Session URL not working**: Verify the session is still active and the port is correct
 4. **Terminal size issues**: The terminal uses 132x43 size for better application compatibility
 
-#### LLM-Assisted Issues
+#### Session Recovery Issues
 
-1. **LLM guidance not working**: Ensure you're using the `answer_session_question` tool with proper response format
-2. **Pattern not learned**: Check that the LLM response follows the `READY:pattern` format exactly
-3. **Timeout questions ignored**: Use `answer_session_question` tool to provide LLM guidance
+1. **Session hangs**: Use `send_signal_to_session` with `SIGINT` to interrupt stuck processes
+2. **Pattern not working**: Use `set_session_ready` with the correct prompt pattern
+3. **Commands timeout**: Try `wait_for_session` for slow commands or `send_signal_to_session` to interrupt
 
 ### Best Practices
 
 #### For Complex Shells
 
-- **Custom prompts**: Use `READY:pattern` to teach the system your prompt when timeouts occur
-- **Nested environments**: Use `WAIT:seconds` for environments that need time to settle
+- **Custom prompts**: Use `set_session_ready` to specify your prompt pattern
+- **Nested environments**: Use `wait_for_session` for environments that need time to settle
+- **Stuck processes**: Use `send_signal_to_session` to interrupt long-running commands
 
 #### Performance Tips
 
