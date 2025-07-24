@@ -201,6 +201,8 @@ Send a signal (like Ctrl+C, Ctrl+Z) to interrupt or control a REPL session proce
 }
 ```
 
+**Note on Windows:** On Windows, only `SIGINT` is practically effective. It is sent as a `Ctrl+C` event and can be used to interrupt running commands or terminate compatible processes like Node.js REPLs. `SIGTSTP` and `SIGQUIT` have no effect.
+
 ### `set_session_ready`
 
 Mark a session as ready with a specific prompt pattern. Used during session recovery.
@@ -451,6 +453,7 @@ This will start TypeScript in watch mode for development.
 
 - Uses `cmd` or `powershell` as default shell
 - Some REPL features may behave differently
+- **Signal Handling:** Only `SIGINT` is effectively supported. It is translated to a `Ctrl+C` event, which can stop most command-line tools and exit REPLs like Node.js. `SIGTSTP` (`Ctrl+Z`) and `SIGQUIT` (`Ctrl+\`) are not supported by the Windows console and will have no effect.
 
 ### macOS/Linux
 
