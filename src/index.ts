@@ -73,10 +73,34 @@ const CreateSessionSchema = z.object({
   debug: z.boolean().optional().describe("Include debug logs in response (default: auto - included for failures/LLM assistance)")
 });
 
-const ExecuteCommandSchema = z.object({
+const SendInputSchema = z.object({
   sessionId: z.string().describe("Session ID"),
-  command: z.string().describe("Command to execute"),
-  timeout: z.number().optional().describe("Timeout in milliseconds (default: 30000)")
+  input: z.string().describe("Input text to send to the session"),
+  options: z.object({
+    wait_for_prompt: z.boolean().optional().describe("Wait for prompt to return (default: false)"),
+    timeout: z.number().optional().describe("Timeout in milliseconds (default: 30000)"),
+    add_newline: z.boolean().optional().describe("Add newline to input (default: true)")
+  }).optional().describe("Input options")
+});
+
+const SendSignalSchema = z.object({
+  sessionId: z.string().describe("Session ID"),
+  signal: z.enum(['SIGINT', 'SIGTSTP', 'SIGQUIT', 'SIGKILL', 'SIGTERM']).describe("Signal to send to the process")
+});
+
+const SetSessionReadySchema = z.object({
+  sessionId: z.string().describe("Session ID"),
+  pattern: z.string().describe("Prompt pattern that was detected (can be regex like '[\\d]+] pry\\(main\\)> $' or literal like '$ ')")
+});
+
+const WaitForSessionSchema = z.object({
+  sessionId: z.string().describe("Session ID"),
+  seconds: z.number().describe("Number of seconds to wait")
+});
+
+const MarkSessionFailedSchema = z.object({
+  sessionId: z.string().describe("Session ID"),
+  reason: z.string().describe("Reason for failure")
 });
 
 const SessionIdSchema = z.object({
@@ -84,11 +108,6 @@ const SessionIdSchema = z.object({
   debug: z.boolean().optional().describe("Include debug logs in response (default: false)")
 });
 
-const AnswerSessionQuestionSchema = z.object({
-  sessionId: z.string().describe("Session ID"),
-  answer: z.string().describe("LLM guidance response. Use READY:pattern to specify detected prompt pattern - can be regex (e.g. 'READY:❯\\s*$') or literal (e.g. 'READY:❯'), SEND:command to send input (SEND:\\n for Enter, SEND:\\x03 for Ctrl+C), WAIT:seconds to wait longer (e.g. WAIT:10), or FAILED:reason to mark as failed"),
-  debug: z.boolean().optional().describe("Include debug logs in response (default: false)")
-});
 
 const ListSessionsSchema = z.object({
   debug: z.boolean().optional().describe("Include debug logs in response (default: false)")
@@ -119,9 +138,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(CreateSessionSchema)
       },
       {
-        name: "execute_repl_command",
-        description: "Execute a command in an existing REPL session. ALWAYS show the command output to the user after execution. Decode ANSI escape codes if present and format the output for readability. For lengthy outputs, summarize key results while preserving important details. Debug logs are automatically included in the response; additional debug information can be obtained using get_session_details.",
-        inputSchema: zodToJsonSchema(ExecuteCommandSchema)
+        name: "send_input_to_session",
+        description: "Send input to a REPL session. Can either wait for prompt return (like execute_repl_command) or send input immediately for interactive programs. ALWAYS show the command output to the user after execution when wait_for_prompt is true.",
+        inputSchema: zodToJsonSchema(SendInputSchema)
+      },
+      {
+        name: "send_signal_to_session",
+        description: "Send a signal (like Ctrl+C, Ctrl+Z) to a REPL session process. Can be used even when session is executing to interrupt long-running commands.",
+        inputSchema: zodToJsonSchema(SendSignalSchema)
       },
       {
         name: "list_repl_sessions",
@@ -144,9 +168,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(ListConfigsSchema)
       },
       {
-        name: "answer_session_question",
-        description: "Answer a question from session creation or command execution during LLM-assisted recovery. Use one of these response formats: READY:pattern (specify detected prompt pattern - can be regex like 'READY:❯\\s*$' or literal like 'READY:❯'), SEND:command (send input like 'SEND:\\n' for Enter), WAIT:seconds (wait longer like 'WAIT:10'), FAILED:reason (mark as failed with explanation)",
-        inputSchema: zodToJsonSchema(AnswerSessionQuestionSchema)
+        name: "set_session_ready",
+        description: "Mark a session as ready by specifying the detected prompt pattern. Supports regex patterns (e.g., '[\\d]+] pry\\(main\\)> $') or literal strings (e.g., '$ '). Used during LLM-assisted session recovery.",
+        inputSchema: zodToJsonSchema(SetSessionReadySchema)
+      },
+      {
+        name: "wait_for_session",
+        description: "Wait additional seconds for a session to become ready. Used during LLM-assisted session recovery when more time is needed.",
+        inputSchema: zodToJsonSchema(WaitForSessionSchema)
+      },
+      {
+        name: "mark_session_failed",
+        description: "Mark a session as failed with a specific reason. Used during LLM-assisted session recovery when recovery is not possible.",
+        inputSchema: zodToJsonSchema(MarkSessionFailedSchema)
       },
       {
         name: "get_full_output",
@@ -234,11 +268,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "execute_repl_command": {
-        const params = ExecuteCommandSchema.parse(args);
-        const { sessionId, command, timeout } = params;
+      case "send_input_to_session": {
+        const params = SendInputSchema.parse(args);
+        const { sessionId, input, options = {} } = params;
+        const { wait_for_prompt = false, timeout = 30000, add_newline = true } = options;
 
-        const result = await sessionManager.executeCommand(sessionId, command, timeout);
+        const result = await sessionManager.sendInput(sessionId, input, { wait_for_prompt, timeout, add_newline });
         
         const response: any = {
           success: result.success,
@@ -251,7 +286,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           context: result.context,
           canContinue: result.canContinue,
           // Hint for agent behavior
-          hint: result.success ? "Decode ANSI escape codes, extract meaningful output, and present it to the user in a clean, readable format" : undefined
+          hint: result.success && wait_for_prompt ? "Decode ANSI escape codes, extract meaningful output, and present it to the user in a clean, readable format" : undefined
         };
         
         return {
@@ -259,6 +294,70 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: JSON.stringify(response, null, 2)
+            }
+          ]
+        };
+      }
+
+      case "send_signal_to_session": {
+        const params = SendSignalSchema.parse(args);
+        const { sessionId, signal } = params;
+
+        const result = await sessionManager.sendSignal(sessionId, signal);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      }
+
+      case "set_session_ready": {
+        const params = SetSessionReadySchema.parse(args);
+        const { sessionId, pattern } = params;
+
+        const result = await sessionManager.setSessionReady(sessionId, pattern);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      }
+
+      case "wait_for_session": {
+        const params = WaitForSessionSchema.parse(args);
+        const { sessionId, seconds } = params;
+
+        const result = await sessionManager.waitForSession(sessionId, seconds);
+        
+        return {
+          content: [
+            {
+              type: "text", 
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      }
+
+      case "mark_session_failed": {
+        const params = MarkSessionFailedSchema.parse(args);
+        const { sessionId, reason } = params;
+
+        const result = await sessionManager.markSessionFailed(sessionId, reason);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
             }
           ]
         };
@@ -398,29 +497,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "answer_session_question": {
-        const params = AnswerSessionQuestionSchema.parse(args);
-        const { sessionId, answer, debug } = params;
-
-        // Use the dedicated answerSessionQuestion method to handle the answer
-        const result = await sessionManager.answerSessionQuestion(sessionId, answer);
-        
-        const response: any = { ...result };
-        
-        // Always include debug logs for LLM-assisted operations or when explicitly requested
-        if (debug || !result.success || result.question) {
-          response.debugLogs = sessionManager.getDebugLogs(sessionId);
-        }
-        
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2)
-            }
-          ]
-        };
-      }
 
       case "get_full_output": {
         const params = GetFullOutputSchema.parse(args);
@@ -611,7 +687,7 @@ function setupWebServer() {
         if (data && typeof data === 'object' && data.type) {
           switch (data.type) {
             case 'terminal_input':
-              // New structured input format
+              // Terminal text input (all characters sent as-is)
               if (typeof data.data === 'string') {
                 sessionManager.log(`Processing terminal input: "${data.data}"`, sessionId);
                 try {
@@ -625,8 +701,28 @@ function setupWebServer() {
               }
               return;
               
+            case 'send_signal':
+              // Signal sending (Ctrl+C, Ctrl+Z, etc.)
+              if (typeof data.signal === 'string') {
+                const validSignals = ['SIGINT', 'SIGTSTP', 'SIGQUIT', 'SIGKILL', 'SIGTERM'];
+                if (validSignals.includes(data.signal)) {
+                  sessionManager.log(`Sending ${data.signal} to PTY process`, sessionId);
+                  try {
+                    ptyProcess.kill(data.signal);
+                    sessionManager.log(`Successfully sent ${data.signal}`, sessionId);
+                  } catch (signalError) {
+                    sessionManager.log(`ERROR sending ${data.signal}: ${signalError}`, sessionId);
+                  }
+                } else {
+                  sessionManager.log(`Invalid signal: ${data.signal}`, sessionId);
+                }
+              } else {
+                sessionManager.log(`Invalid send_signal data type: ${typeof data.signal}`, sessionId);
+              }
+              return;
+              
             case 'resize':
-              // New structured resize format
+              // Terminal resize
               if (data.data && typeof data.data === 'object' && data.data.cols && data.data.rows) {
                 sessionManager.log(`Resizing terminal to ${data.data.cols}x${data.data.rows}`, sessionId);
                 ptyProcess.resize(data.data.cols, data.data.rows);

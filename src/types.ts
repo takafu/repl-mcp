@@ -53,15 +53,6 @@ export interface SessionCreationResult {
   canContinue?: boolean;
 }
 
-export interface LLMGuidance {
-  action: 'ready' | 'send' | 'wait' | 'failed';
-  payload?: {
-    pattern?: string;
-    command?: string;
-    seconds?: number;
-    reason?: string;
-  };
-}
 
 export interface PromptInfo {
   detected: boolean;

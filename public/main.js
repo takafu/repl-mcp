@@ -47,12 +47,39 @@ if (!sessionId) {
   term.onData(data => {
     console.log('Input data:', data, 'char codes:', [...data].map(c => c.charCodeAt(0)));
     if (ws.readyState === WebSocket.OPEN) {
-      // Send structured terminal input message
-      const message = {
-        type: 'terminal_input',
-        data: data
-      };
-      ws.send(JSON.stringify(message));
+      // Check for control characters that should be sent as signals
+      if (data === '\x03') {
+        // Ctrl+C → Send SIGINT signal
+        console.log('Detected Ctrl+C, sending SIGINT signal');
+        const message = {
+          type: 'send_signal',
+          signal: 'SIGINT'
+        };
+        ws.send(JSON.stringify(message));
+      } else if (data === '\x1A') {
+        // Ctrl+Z → Send SIGTSTP signal
+        console.log('Detected Ctrl+Z, sending SIGTSTP signal');
+        const message = {
+          type: 'send_signal',
+          signal: 'SIGTSTP'
+        };
+        ws.send(JSON.stringify(message));
+      } else if (data === '\x1C') {
+        // Ctrl+\ → Send SIGQUIT signal
+        console.log('Detected Ctrl+\\, sending SIGQUIT signal');
+        const message = {
+          type: 'send_signal',
+          signal: 'SIGQUIT'
+        };
+        ws.send(JSON.stringify(message));
+      } else {
+        // Send as regular terminal input
+        const message = {
+          type: 'terminal_input',
+          data: data
+        };
+        ws.send(JSON.stringify(message));
+      }
     }
   });
   

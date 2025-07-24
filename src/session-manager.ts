@@ -1,6 +1,6 @@
 import { ChildProcess } from 'child_process';
 import * as nodePty from 'node-pty';
-import { REPLConfig, SessionState, CommandResult, LLMGuidance, SessionCreationResult } from './types.js';
+import { REPLConfig, SessionState, CommandResult, SessionCreationResult } from './types.js';
 import { PromptDetector } from './prompt-detector.js';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -283,27 +283,48 @@ Please respond with one of:
     }
   }
 
-  public async executeCommand(sessionId: string, command: string, timeout: number = 30000): Promise<CommandResult> {
+  public async sendInput(sessionId: string, input: string, options: {
+    wait_for_prompt?: boolean,
+    timeout?: number,
+    add_newline?: boolean
+  } = {}): Promise<CommandResult> {
+    const { wait_for_prompt = false, timeout = 30000, add_newline = true } = options;
+    
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    if (session.status !== 'ready') {
-      throw new Error(`Session ${sessionId} is not ready (status: ${session.status})`);
+    if (!session.process) {
+      throw new Error(`Session ${sessionId} has no active process`);
     }
 
-    session.status = 'executing';
+    // 実行中でも入力を受け付ける（より柔軟に）
+    if (wait_for_prompt) {
+      session.status = 'executing';
+    }
     session.lastActivity = new Date();
 
     const startTime = Date.now();
 
     try {
-      // Clear output buffer before sending command
-      this.outputBuffers.set(sessionId, '');
+      if (wait_for_prompt) {
+        // Clear output buffer before sending command
+        this.outputBuffers.set(sessionId, '');
+      }
 
-      // Send command
-      session.process!.write(command + '\r\n');
+      // Send input
+      const text = add_newline ? input + '\r\n' : input;
+      session.process.write(text);
+
+      if (!wait_for_prompt) {
+        // Immediate return for interactive input
+        return {
+          success: true,
+          rawOutput: '',
+          executionTime: Date.now() - startTime
+        };
+      }
 
       // Wait for prompt to return
       const result = await this.waitForPromptWithLLMFallback(sessionId, timeout);
@@ -311,13 +332,13 @@ Please respond with one of:
         // Return LLM question without updating session state
         return result;
       }
-            const output = result.rawOutput!;
+      const output = result.rawOutput!;
       
       const executionTime = Date.now() - startTime;
       const isError = PromptDetector.isErrorOutput(output, session.config.type);
 
       session.status = 'ready';
-      session.history.push(command);
+      session.history.push(input);
       
       // Limit history to last MAX_HISTORY_SIZE commands
       if (session.history.length > this.MAX_HISTORY_SIZE) {
@@ -329,22 +350,75 @@ Please respond with one of:
 
       return {
         success: !isError,
-        rawOutput: this.truncateForMCPResponse(output.trim()),
-        error: isError ? this.truncateForMCPResponse(output.trim()) : undefined,
-        executionTime
+        rawOutput: output,
+        executionTime,
+        error: isError ? 'Command execution failed' : undefined
       };
     } catch (error) {
-      session.status = 'error';
-      session.lastError = error instanceof Error ? error.message : String(error);
+      if (wait_for_prompt) {
+        session.status = 'error';
+        session.lastError = error instanceof Error ? error.message : String(error);
+      }
       
-      return {
-        success: false,
-        rawOutput: '',
-        error: error instanceof Error ? error.message : String(error),
-        executionTime: Date.now() - startTime
-      };
+      throw error;
     }
   }
+
+  public async sendSignal(sessionId: string, signal: string): Promise<{success: boolean, message?: string, error?: string}> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return { success: false, error: `Session ${sessionId} not found` };
+    }
+
+    if (!session.process) {
+      return { success: false, error: `Session ${sessionId} has no active process` };
+    }
+
+    try {
+      session.process.kill(signal);
+      session.lastActivity = new Date();
+      return { success: true, message: `Signal ${signal} sent to session ${sessionId}` };
+    } catch (error) {
+      return { success: false, error: `Failed to send signal ${signal}: ${error}` };
+    }
+  }
+
+  public async setSessionReady(sessionId: string, pattern: string): Promise<{success: boolean, message?: string, error?: string}> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return { success: false, error: `Session ${sessionId} not found` };
+    }
+
+    session.status = 'ready';
+    session.lastActivity = new Date();
+    // Store the pattern for future use if needed
+    return { success: true, message: `Session ${sessionId} marked as ready with pattern: ${pattern}` };
+  }
+
+  public async waitForSession(sessionId: string, seconds: number): Promise<{success: boolean, message?: string, error?: string}> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return { success: false, error: `Session ${sessionId} not found` };
+    }
+
+    // Wait for specified seconds
+    await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+    session.lastActivity = new Date();
+    return { success: true, message: `Waited ${seconds} seconds for session ${sessionId}` };
+  }
+
+  public async markSessionFailed(sessionId: string, reason: string): Promise<{success: boolean, message?: string, error?: string}> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return { success: false, error: `Session ${sessionId} not found` };
+    }
+
+    session.status = 'error';
+    session.lastError = reason;
+    session.lastActivity = new Date();
+    return { success: true, message: `Session ${sessionId} marked as failed: ${reason}` };
+  }
+
 
   public getSession(sessionId: string): SessionState | undefined {
     return this.sessions.get(sessionId);
@@ -354,9 +428,6 @@ Please respond with one of:
     return Array.from(this.sessions.values());
   }
 
-  public async answerSessionQuestion(sessionId: string, answer: string): Promise<CommandResult> {
-    return await this.handleLLMGuidance(sessionId, answer);
-  }
 
   public async destroySession(sessionId: string): Promise<boolean> {
     const session = this.sessions.get(sessionId);
@@ -670,13 +741,15 @@ ${rawOutput}
 
 Timeout error: ${error.message}
 
-Please respond with one of:
-- READY:{pattern} - if you see a working prompt, specify the pattern
-- SEND:{command} - if a command should be sent (e.g., \\n for Enter, \\x03 for Ctrl+C)
-- WAIT:{seconds} - if we should wait longer (specify number of seconds)
-- FAILED:{reason} - if this should be considered a failure
+Available tools to resolve this:
+- send_signal_to_session("${sessionId}", "SIGINT") - Send Ctrl+C to interrupt stuck processes
+- send_input_to_session("${sessionId}", "\\n", {wait_for_prompt: true}) - Send Enter key and wait for prompt
+- send_input_to_session("${sessionId}", "q", {wait_for_prompt: true}) - Send 'q' to quit interactive programs
+- set_session_ready("${sessionId}", "prompt_pattern") - If you see a working prompt, specify the pattern (regex like '[\\\\d]+] pry\\\\(main\\\\)> $' or literal like '$ ')
+- wait_for_session("${sessionId}", seconds) - Wait longer for response (specify number of seconds)
+- mark_session_failed("${sessionId}", "reason") - Give up and mark as failed with explanation
 
-What should I do?`;
+Analyze the output and choose the most appropriate tool to resolve the timeout.`;
 
     return {
       success: false,
@@ -690,124 +763,7 @@ What should I do?`;
     };
   }
 
-  private async handleLLMGuidance(sessionId: string, response: string): Promise<CommandResult> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
-    }
 
-    const guidance = this.parseLLMResponse(response);
-    
-    switch (guidance.action) {
-      case 'ready':
-        // LLM says the session is ready with detected pattern
-        const learnedPattern = guidance.payload?.pattern;
-        if (learnedPattern && !session.learnedPromptPatterns.includes(learnedPattern)) {
-          session.learnedPromptPatterns.push(learnedPattern);
-          this.log(`[DEBUG ${sessionId}] Learned new prompt pattern: "${learnedPattern}"`, sessionId);
-        }
-        session.status = 'ready';
-        session.lastActivity = new Date();
-        this.log(`[DEBUG ${sessionId}] LLM declared session ready with pattern: ${learnedPattern}`, sessionId);
-        return {
-          success: true,
-          rawOutput: this.outputBuffers.get(sessionId) || '',
-          executionTime: 0
-        };
-
-      case 'send':
-        // Send the command suggested by LLM
-        const command = guidance.payload?.command || '';
-        this.log(`[DEBUG ${sessionId}] LLM suggested sending command: ${JSON.stringify(command)}`, sessionId);
-        session.process!.write(command);
-        
-        // Wait for response and potentially ask LLM again
-        try {
-          const output = await this.waitForPrompt(sessionId, 10000);
-          session.status = 'ready';
-          return {
-            success: true,
-            rawOutput: output,
-            executionTime: 0
-          };
-        } catch (error) {
-          // Still having issues, ask LLM again
-          const newOutput = this.outputBuffers.get(sessionId) || '';
-          return this.createLLMTimeoutQuestion(sessionId, newOutput, error as Error);
-        }
-
-      case 'wait':
-        // Wait for specified duration then retry
-        const seconds = guidance.payload?.seconds || 3;
-        this.log(`[DEBUG ${sessionId}] LLM suggested waiting ${seconds} seconds`, sessionId);
-        
-        await new Promise(resolve => setTimeout(resolve, seconds * 1000));
-        
-        try {
-          const output = await this.waitForPrompt(sessionId, 10000);
-          session.status = 'ready';
-          return {
-            success: true,
-            rawOutput: output,
-            executionTime: seconds * 1000
-          };
-        } catch (error) {
-          // Still timing out after wait, ask LLM again
-          const newOutput = this.outputBuffers.get(sessionId) || '';
-          return this.createLLMTimeoutQuestion(sessionId, newOutput, error as Error);
-        }
-
-      case 'failed':
-        // LLM says this should be considered a failure
-        const reason = guidance.payload?.reason || 'LLM determined session cannot be recovered';
-        session.status = 'error';
-        session.lastError = reason;
-        return {
-          success: false,
-          rawOutput: '',
-          error: reason,
-          executionTime: 0
-        };
-
-      default:
-        return {
-          success: false,
-          rawOutput: '',
-          error: `Unknown LLM guidance action: ${response}`,
-          executionTime: 0
-        };
-    }
-  }
-
-  private parseLLMResponse(response: string): LLMGuidance {
-    const trimmed = response.trim();
-    
-    if (trimmed.startsWith('READY:')) {
-      const pattern = trimmed.substring(6);
-      return { action: 'ready', payload: { pattern } };
-    }
-    
-    if (trimmed.startsWith('SEND:')) {
-      const command = trimmed.substring(5);
-      return { action: 'send', payload: { command } };
-    }
-    
-    if (trimmed.startsWith('WAIT:')) {
-      const seconds = parseInt(trimmed.substring(5)) || 3;
-      return { action: 'wait', payload: { seconds } };
-    }
-    
-    if (trimmed.startsWith('FAILED:')) {
-      const reason = trimmed.substring(7);
-      return { action: 'failed', payload: { reason } };
-    }
-    
-    // Default fallback
-    return { 
-      action: 'failed', 
-      payload: { reason: `Could not parse LLM response: ${response}` }
-    };
-  }
 }
 
 function getWindowsBuildNumber(): number {
