@@ -190,7 +190,7 @@ Send a signal (like Ctrl+C, Ctrl+Z) to interrupt or control a REPL session proce
 **Parameters:**
 
 - `sessionId`: The session ID
-- `signal`: Signal to send (`SIGINT`, `SIGTSTP`, `SIGQUIT`, `SIGKILL`, `SIGTERM`)
+- `signal`: Signal to send (`SIGINT`, `SIGTSTP`, `SIGQUIT`)
 
 **Example:**
 

@@ -85,7 +85,7 @@ const SendInputSchema = z.object({
 
 const SendSignalSchema = z.object({
   sessionId: z.string().describe("Session ID"),
-  signal: z.enum(['SIGINT', 'SIGTSTP', 'SIGQUIT', 'SIGKILL', 'SIGTERM']).describe("Signal to send to the process")
+  signal: z.enum(['SIGINT', 'SIGTSTP', 'SIGQUIT']).describe("Signal to send to the process")
 });
 
 const SetSessionReadySchema = z.object({
@@ -704,18 +704,7 @@ function setupWebServer() {
             case 'send_signal':
               // Signal sending (Ctrl+C, Ctrl+Z, etc.)
               if (typeof data.signal === 'string') {
-                const validSignals = ['SIGINT', 'SIGTSTP', 'SIGQUIT', 'SIGKILL', 'SIGTERM'];
-                if (validSignals.includes(data.signal)) {
-                  sessionManager.log(`Sending ${data.signal} to PTY process`, sessionId);
-                  try {
-                    ptyProcess.kill(data.signal);
-                    sessionManager.log(`Successfully sent ${data.signal}`, sessionId);
-                  } catch (signalError) {
-                    sessionManager.log(`ERROR sending ${data.signal}: ${signalError}`, sessionId);
-                  }
-                } else {
-                  sessionManager.log(`Invalid signal: ${data.signal}`, sessionId);
-                }
+                sessionManager.sendSignal(sessionId, data.signal);
               } else {
                 sessionManager.log(`Invalid send_signal data type: ${typeof data.signal}`, sessionId);
               }

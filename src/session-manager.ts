@@ -315,6 +315,7 @@ Please respond with one of:
 
       // Send input
       const text = add_newline ? input + '\r\n' : input;
+      this.log(`[sendInput] Writing to PTY: ${JSON.stringify(text)} (length: ${text.length})`, sessionId);
       session.process.write(text);
 
       if (!wait_for_prompt) {
@@ -375,9 +376,35 @@ Please respond with one of:
     }
 
     try {
-      session.process.kill(signal);
-      session.lastActivity = new Date();
-      return { success: true, message: `Signal ${signal} sent to session ${sessionId}` };
+      // Send control characters directly to PTY for better compatibility
+      let controlChar: string | null = null;
+      let signalName: string = signal;
+      
+      switch (signal) {
+        case 'SIGINT':
+          controlChar = '\x03'; // Ctrl+C
+          signalName = 'Ctrl+C';
+          break;
+        case 'SIGTSTP':
+          controlChar = '\x1A'; // Ctrl+Z
+          signalName = 'Ctrl+Z';
+          break;
+        case 'SIGQUIT':
+          controlChar = '\x1C'; // Ctrl+\
+          signalName = 'Ctrl+\\';
+          break;
+      }
+      
+      if (controlChar) {
+        this.log(`[sendSignal] Writing to PTY: ${JSON.stringify(controlChar)} (length: ${controlChar.length})`, sessionId);
+        session.process.write(controlChar);
+        session.lastActivity = new Date();
+        this.log(`Sent ${signalName} character (${JSON.stringify(controlChar)}) to PTY process`, sessionId);
+        return { success: true, message: `${signal} sent as ${signalName} character to session ${sessionId}` };
+      }
+      
+      // Should never reach here with current supported signals
+      return { success: false, error: `Unsupported signal: ${signal}` };
     } catch (error) {
       return { success: false, error: `Failed to send signal ${signal}: ${error}` };
     }
