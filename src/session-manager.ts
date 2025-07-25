@@ -313,8 +313,8 @@ Please respond with one of:
         this.outputBuffers.set(sessionId, '');
       }
 
-      // Send input
-      const text = add_newline ? input + '\r\n' : input;
+      // Send input with proper line ending
+      const text = add_newline ? input + '\r' : input;
       this.log(`[sendInput] Writing to PTY: ${JSON.stringify(text)} (length: ${text.length})`, sessionId);
       session.process.write(text);
 
