@@ -1,26 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <!-- Terminal background -->
-  <rect width="32" height="32" rx="6" fill="#2D3748"/>
-  
   <!-- Terminal screen -->
-  <rect x="3" y="6" width="26" height="20" rx="2" fill="#1A202C"/>
+  <rect x="1" y="4" width="30" height="24" rx="3" fill="#1A202C" stroke="#FFFFFF" stroke-width="0.1"/>
   
   <!-- Title bar -->
-  <rect x="3" y="6" width="26" height="3" rx="2" fill="#4A5568"/>
+  <rect x="1" y="4" width="30" height="4" rx="3" fill="#4A5568" stroke="#FFFFFF" stroke-width="0.1"/>
   
   <!-- Traffic lights -->
-  <circle cx="6" cy="7.5" r="0.8" fill="#FF5F56"/>
-  <circle cx="9" cy="7.5" r="0.8" fill="#FFBD2E"/>
-  <circle cx="12" cy="7.5" r="0.8" fill="#27CA3F"/>
+  <circle cx="5" cy="6" r="1" fill="#FF5F56"/>
+  <circle cx="9" cy="6" r="1" fill="#FFBD2E"/>
+  <circle cx="13" cy="6" r="1" fill="#27CA3F"/>
   
   <!-- Simple kawaii face -->
   <!-- Eyes -->
-  <circle cx="12" cy="15" r="1" fill="#4FD1C7"/>
-  <circle cx="20" cy="15" r="1" fill="#4FD1C7"/>
+  <circle cx="12" cy="16" r="1.2" fill="#4FD1C7"/>
+  <circle cx="20" cy="16" r="1.2" fill="#4FD1C7"/>
   
   <!-- Smile -->
-  <path d="M 14 19 Q 16 21 18 19" stroke="#4FD1C7" stroke-width="1" fill="none" stroke-linecap="round"/>
+  <path d="M 14 21 Q 16 23 18 21" stroke="#4FD1C7" stroke-width="1.2" fill="none" stroke-linecap="round"/>
   
   <!-- Simple prompt -->
-  <text x="6" y="24" fill="#4FD1C7" font-family="monospace" font-size="5">></text>
+  <text x="4" y="26" fill="#4FD1C7" font-family="monospace" font-size="6">></text>
 </svg>
