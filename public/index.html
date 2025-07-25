@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>REPL MCP</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
     body { 
       margin: 0; 
-      background: #222; 
+      background: #2D3748; 
       color: #fff;
       font-family: 'Courier New', monospace;
       display: flex;
@@ -18,23 +19,32 @@
     .container {
       max-width: 600px;
       padding: 20px;
+      background: #1A202C;
+      border-radius: 12px;
+      border: 1px solid #4A5568;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     }
     h1 {
-      color: #4CAF50;
+      color: #4FD1C7;
       margin-bottom: 20px;
+      margin-top: 16px;
     }
     .message {
-      color: #ccc;
+      color: #E2E8F0;
       line-height: 1.6;
     }
     .url {
-      color: #2196F3;
+      color: #4FD1C7;
       font-weight: bold;
+      background: rgba(79, 209, 199, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
     }
   </style>
 </head>
 <body>
   <div class="container">
+    <img src="/favicon.svg" alt="REPL MCP" width="64" height="64" style="margin-bottom: 16px;">
     <h1>REPL MCP Server</h1>
     <div class="message">
       Server is running successfully!<br>

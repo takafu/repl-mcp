@@ -1,5 +1,7 @@
 # repl-mcp
 
+<img src="public/favicon.svg" alt="REPL MCP" width="48" height="48" align="left" style="margin-right: 16px;">
+
 A simple MCP server for managing REPL sessions. Provides basic tools to create and execute commands in various REPLs and shells, with an integrated Web UI for browser-based session monitoring.
 
 ## Motivation
