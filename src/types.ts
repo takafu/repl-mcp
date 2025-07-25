@@ -14,6 +14,7 @@ export interface REPLConfig {
 export interface SessionState {
   id: string;
   config: REPLConfig;
+  displayName?: string; // Optional custom name for the session
   status: 'initializing' | 'ready' | 'executing' | 'error' | 'terminated';
   process?: nodePty.IPty;
   currentDirectory: string;

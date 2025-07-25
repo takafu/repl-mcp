@@ -11,7 +11,17 @@
     const titlePathSegments = window.location.pathname.split('/');
     const titleSessionId = titlePathSegments[2]; // /session/SESSION_ID
     if (titleSessionId) {
-      document.title = `REPL MCP Terminal - ${titleSessionId}`;
+      // Fetch session info to get displayName
+      fetch(`/api/session/${titleSessionId}`)
+        .then(response => response.json())
+        .then(data => {
+          const displayName = data.displayName || data.configName || titleSessionId;
+          document.title = `${displayName} - repl-mcp`;
+        })
+        .catch(() => {
+          // Fallback to sessionId if API call fails
+          document.title = `${titleSessionId} - repl-mcp`;
+        });
     }
   </script>
 </head>

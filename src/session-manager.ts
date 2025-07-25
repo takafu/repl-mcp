@@ -131,7 +131,7 @@ export class SessionManager {
 
 
 
-  public async createSession(config: REPLConfig): Promise<SessionCreationResult> {
+  public async createSession(config: REPLConfig, displayName?: string): Promise<SessionCreationResult> {
     const sessionId = this.generateSessionId();
     const startingDir = config.startingDirectory || process.cwd();
 
@@ -139,6 +139,7 @@ export class SessionManager {
     const sessionState: SessionState = {
       id: sessionId,
       config,
+      displayName,
       status: 'initializing',
       currentDirectory: startingDir,
       history: [],

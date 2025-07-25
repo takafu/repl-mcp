@@ -61,6 +61,7 @@ const sessionManager = new SessionManager();
 // Schema definitions
 const CreateSessionSchema = z.object({
   configName: z.string().optional().describe("Pre-defined configuration name"),
+  displayName: z.string().optional().describe("Custom display name for the session (shown in browser tab)"),
   customConfig: z.object({
     name: z.string().describe("Session name"),
     type: z.enum(['pry', 'irb', 'ipython', 'node', 'python', 'bash', 'zsh', 'cmd', 'custom']).describe("REPL type"),
@@ -134,7 +135,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "create_repl_session",
-        description: "Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to access the session via Web UI. Please show the webUrl to the user so they can open it in their browser. Note: If using zsh in custom commands, you may need to manually run 'histchars=' to disable history expansion.",
+        description: "Create a new REPL session with predefined or custom configuration. Use displayName to set a custom name that appears in the browser tab title. Returns a webUrl - you MUST display this URL to the user or open it in a browser. Note: If using zsh in custom commands, you may need to manually run 'histchars=' to disable history expansion.",
         inputSchema: zodToJsonSchema(CreateSessionSchema)
       },
       {
@@ -207,7 +208,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case "create_repl_session": {
         const params = CreateSessionSchema.parse(args);
-        const { configName, customConfig, debug } = params;
+        const { configName, displayName, customConfig, debug } = params;
 
         let config: REPLConfig;
 
@@ -239,7 +240,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const result = await sessionManager.createSession(config);
+        const result = await sessionManager.createSession(config, displayName);
         attemptedSessionId = result.sessionId;
         
         const response: any = {
@@ -372,6 +373,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           sessions: sessions.map(session => ({
             id: session.id,
             name: session.config.name,
+            displayName: session.displayName,
             type: session.config.type,
             status: session.status,
             createdAt: session.createdAt,
@@ -422,6 +424,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           session: {
             id: session.id,
             config: session.config,
+            displayName: session.displayName,
             status: session.status,
             currentDirectory: session.currentDirectory,
             history: session.history,
@@ -594,6 +597,23 @@ function setupWebServer() {
     }
   });
   
+  // API endpoint to get session info
+  app.get('/api/session/:sessionId', (req, res) => {
+    const sessionId = req.params.sessionId;
+    const session = sessionManager.getSession(sessionId);
+    
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    
+    res.json({
+      id: session.id,
+      displayName: session.displayName,
+      configName: session.config.name
+    });
+  });
+
   // Route for session pages
   app.get('/session/:sessionId', (_req, res) => {
     const sessionPath = path.resolve(__dirname, '../public/session.html');
