@@ -15,7 +15,7 @@
       fetch(`/api/session/${titleSessionId}`)
         .then(response => response.json())
         .then(data => {
-          const displayName = data.displayName || data.configName || titleSessionId;
+          const displayName = data.displayName || titleSessionId;
           document.title = `${displayName} - repl-mcp`;
         })
         .catch(() => {

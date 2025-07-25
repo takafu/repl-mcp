@@ -60,10 +60,9 @@ const sessionManager = new SessionManager();
 
 // Schema definitions
 const CreateSessionSchema = z.object({
-  configName: z.string().optional().describe("Pre-defined configuration name"),
+  presetConfig: z.string().optional().describe("Pre-defined configuration name"),
   displayName: z.string().optional().describe("Custom display name for the session (shown in browser tab)"),
   customConfig: z.object({
-    name: z.string().describe("Session name"),
     type: z.enum(['pry', 'irb', 'ipython', 'node', 'python', 'bash', 'zsh', 'cmd', 'custom']).describe("REPL type"),
     shell: z.enum(['bash', 'zsh', 'cmd', 'powershell']).describe("Shell type"),
     commands: z.array(z.string()).describe("Commands to execute in order. The last command should start the REPL."),
@@ -134,8 +133,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: "create_repl_session",
-        description: "Create a new REPL session with predefined or custom configuration. Use displayName to set a custom name that appears in the browser tab title. Returns a webUrl - you MUST display this URL to the user or open it in a browser. Note: If using zsh in custom commands, you may need to manually run 'histchars=' to disable history expansion.",
+        name: "create_session",
+        description: "Create a new REPL session with preset or custom configuration. Use displayName to set a custom name that appears in the browser tab title. Returns a webUrl - you MUST display this URL to the user or open it in a browser. Note: If using zsh in custom commands, you may need to manually run 'histchars=' to disable history expansion.",
         inputSchema: zodToJsonSchema(CreateSessionSchema)
       },
       {
@@ -206,20 +205,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
-      case "create_repl_session": {
+      case "create_session": {
         const params = CreateSessionSchema.parse(args);
-        const { configName, displayName, customConfig, debug } = params;
+        const { presetConfig, displayName, customConfig, debug } = params;
 
         let config: REPLConfig;
 
-        if (configName) {
-          const predefinedConfig = getConfigByName(configName);
+        if (presetConfig) {
+          const predefinedConfig = getConfigByName(presetConfig);
           if (!predefinedConfig) {
             return {
               content: [
                 {
                   type: "text",
-                  text: `Configuration '${configName}' not found. Available configurations: ${listAvailableConfigs().join(', ')}`
+                  text: `Configuration '${presetConfig}' not found. Available configurations: ${listAvailableConfigs().join(', ')}`
                 }
               ],
               isError: true
@@ -227,13 +226,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
           config = predefinedConfig;
         } else if (customConfig) {
-          config = customConfig as REPLConfig;
+          config = {
+            name: `Custom ${customConfig.type}`,
+            ...customConfig
+          } as REPLConfig;
         } else {
           return {
             content: [
               {
                 type: "text",
-                text: "Either configName or customConfig must be provided"
+                text: "Either presetConfig or customConfig must be provided"
               }
             ],
             isError: true
@@ -609,8 +611,7 @@ function setupWebServer() {
     
     res.json({
       id: session.id,
-      displayName: session.displayName,
-      configName: session.config.name
+      displayName: session.displayName
     });
   });
 
