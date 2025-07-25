@@ -92,20 +92,36 @@ Add to your MCP settings file:
 
 ## Available Tools
 
-### `create_repl_session`
+### `create_session`
 
-Create a new REPL session with predefined or custom configuration. Returns a webUrl that can be opened in a browser to monitor the session via Web UI.
+Create a new REPL session with preset or custom configuration. Use displayName to set a custom name that appears in the browser tab title. Returns a webUrl that can be opened in a browser to monitor the session via Web UI.
 
 **Parameters:**
 
-- `configName` (optional): Name of predefined configuration
+- `presetConfig` (optional): Name of predefined configuration
+- `displayName` (optional): Custom display name for the session (shown in browser tab)
 - `customConfig` (optional): Custom configuration object
 
-**Example:**
+**Example with preset:**
 
 ```json
 {
-  "configName": "pry"
+  "presetConfig": "pry",
+  "displayName": "My Ruby Session"
+}
+```
+
+**Example with custom configuration:**
+
+```json
+{
+  "displayName": "Custom Python Session",
+  "customConfig": {
+    "type": "python",
+    "shell": "bash",
+    "commands": ["python3"],
+    "timeout": 10000
+  }
 }
 ```
 
@@ -300,9 +316,10 @@ Prompt patterns learned during recovery are remembered for the session duration.
 
 ```json
 {
-  "tool": "create_repl_session",
+  "tool": "create_session",
   "arguments": {
-    "configName": "python"
+    "presetConfig": "python",
+    "displayName": "My Python Session"
   }
 }
 ```
