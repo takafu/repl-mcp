@@ -1,6 +1,6 @@
 {
   "name": "repl-mcp",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Universal REPL session manager MCP server",
   "type": "module",
   "main": "build/index.js",
