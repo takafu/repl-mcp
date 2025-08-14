@@ -15,7 +15,8 @@ if (!sessionId) {
   term.write('Usage: http://localhost:8023/session/YOUR_SESSION_ID\r\n');
 } else {
   // Connect to WebSocket endpoint with sessionId
-  const ws = new WebSocket(`ws://${location.host}/terminal?sessionId=${sessionId}`);
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${protocol}//${location.host}/terminal?sessionId=${sessionId}`);
 
   ws.onopen = () => {
     term.write(`Connected to session: ${sessionId}\r\n`);
