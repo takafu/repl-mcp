@@ -139,7 +139,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "send_input_to_session",
-        description: "Send input to a REPL session. Can either wait for prompt return (like execute_repl_command) or send input immediately for interactive programs. ALWAYS show the command output to the user after execution when wait_for_prompt is true.",
+        description: "Send input to a REPL session. Can either wait for prompt return or send input immediately for interactive programs. Output is automatically truncated at 50KB for responsiveness - use get_full_output for complete large outputs. ALWAYS show the command output to the user after execution when wait_for_prompt is true.",
         inputSchema: zodToJsonSchema(SendInputSchema)
       },
       {
@@ -184,7 +184,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "get_full_output",
-        description: "Get the last command's output buffer for a session in chunks to avoid token limits. This returns the output from the most recent command execution. Use offset and limit parameters to retrieve specific portions of large outputs.",
+        description: "Get the last command's output buffer for a session in chunks to avoid token limits. Returns output with pagination info (totalLength, hasMore, nextOffset). For large outputs, use multiple requests with offset/limit parameters. Default limit is 40KB per request.",
         inputSchema: zodToJsonSchema(GetFullOutputSchema)
       },
       {
