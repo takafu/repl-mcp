@@ -34,9 +34,10 @@ export class PromptDetector {
       return { detected: false, type: 'unknown', ready: false, prompt: '' };
     }
 
-    // Look for prompt in all lines, not just the last one
+    // Look for prompt in the last 20 lines (prompts are typically at the end)
     // Check lines in reverse order to find the most recent prompt
-    for (let i = lines.length - 1; i >= 0; i--) {
+    const startIndex = Math.max(0, lines.length - 20);
+    for (let i = lines.length - 1; i >= startIndex; i--) {
       const line = lines[i];
       const originalLine = line; // Keep original for logging
       const cleanLine = isCleanText ? line.trim() : PromptDetector.stripAnsiCodes(line).trim(); // Strip ANSI codes only if needed
