@@ -147,49 +147,6 @@ export class PromptDetector {
     return { detected: false, type: 'unknown', ready: false, prompt: cleanLine };
   }
 
-  public static isErrorOutput(output: string, replType: string): boolean {
-    const errorPatterns: Record<string, RegExp[]> = {
-      pry: [
-        /Error:/i,
-        /Exception:/i,
-        /SyntaxError:/i,
-        /NameError:/i,
-        /NoMethodError:/i
-      ],
-      irb: [
-        /Error:/i,
-        /Exception:/i,
-        /SyntaxError:/i,
-        /NameError:/i,
-        /NoMethodError:/i
-      ],
-      ipython: [
-        /Error:/i,
-        /Exception:/i,
-        /SyntaxError:/i,
-        /NameError:/i,
-        /AttributeError:/i,
-        /TypeError:/i
-      ],
-      python: [
-        /Error:/i,
-        /Exception:/i,
-        /SyntaxError:/i,
-        /NameError:/i,
-        /AttributeError:/i,
-        /TypeError:/i
-      ],
-      node: [
-        /Error:/i,
-        /ReferenceError:/i,
-        /SyntaxError:/i,
-        /TypeError:/i
-      ]
-    };
-
-    const patterns = errorPatterns[replType] || errorPatterns.pry;
-    return patterns.some(pattern => pattern.test(output));
-  }
 
   public static extractCommandOutput(fullOutput: string, command: string, replType: string): string {
     // Strip ANSI codes for easier parsing

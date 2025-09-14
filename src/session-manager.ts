@@ -352,26 +352,24 @@ Please respond with one of:
         return result;
       }
       const output = result.rawOutput!;
-      
+
       const executionTime = Date.now() - startTime;
-      const isError = PromptDetector.isErrorOutput(output, session.config.type);
 
       session.status = 'ready';
       session.history.push(input);
-      
+
       // Limit history to last MAX_HISTORY_SIZE commands
       if (session.history.length > this.MAX_HISTORY_SIZE) {
         session.history = session.history.slice(-this.MAX_HISTORY_SIZE);
       }
-      
+
       session.lastOutput = output;
       session.lastActivity = new Date();
 
       return {
-        success: !isError,
+        success: true, // プロンプト検出成功 = コマンド成功
         rawOutput: output,
-        executionTime,
-        error: isError ? 'Command execution failed' : undefined
+        executionTime
       };
     } catch (error) {
       if (wait_for_prompt) {
