@@ -368,7 +368,7 @@ Please respond with one of:
 
       return {
         success: true, // プロンプト検出成功 = コマンド成功
-        rawOutput: output,
+        rawOutput: this.truncateForMCPResponse(output),
         executionTime
       };
     } catch (error) {
