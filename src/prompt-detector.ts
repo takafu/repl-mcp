@@ -179,9 +179,11 @@ export class PromptDetector {
     }
     
     if (commandLineIndex === -1) {
-      // Command not found in output, return everything minus the last prompt line
-      const withoutLastLine = lines.slice(0, -1);
-      return withoutLastLine.join('\n').trim();
+      // Command not found in output, return everything minus the last prompt line (if it looks like a prompt)
+      const last = lines[lines.length - 1]?.trim() ?? '';
+      const lastIsPrompt = PromptDetector.looksLikePrompt(last, replType);
+      const end = lastIsPrompt ? -1 : undefined;
+      return lines.slice(0, end).join('\n').trim();
     }
     
     // Extract output between command echo and final prompt
