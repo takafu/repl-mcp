@@ -19,7 +19,7 @@ export class PromptDetector {
 
   private static stripAnsiCodes(str: string): string {
     const ansiRegex = /\u001b\[[0-9;?]*[A-Za-z]/g;
-    return stripAnsi(str).trim().replace(ansiRegex, "");
+    return stripAnsi(str).replace(ansiRegex, "").trim();
   }
 
   private static readonly CONTINUATION_PATTERNS: Record<string, RegExp> = {
