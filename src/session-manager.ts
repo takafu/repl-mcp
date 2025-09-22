@@ -666,8 +666,9 @@ Please respond with one of:
         }
 
         const output = this.getOutputBuffer(sessionId);
-        // Simple check for shell prompt (can be improved)
-        if (output.includes('$') || output.includes('>') || output.includes('#')) {
+        // Use PromptDetector for accurate shell prompt detection
+        const promptInfo = PromptDetector.detectPrompt(output, undefined, [], false);
+        if (promptInfo.detected && promptInfo.ready) {
           resolve();
         } else {
           setTimeout(checkReady, 100);
