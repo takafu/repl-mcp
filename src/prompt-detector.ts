@@ -57,12 +57,16 @@ export class PromptDetector {
     }
 
     // If no prompt found, return info about the last non-empty line
-    const lastNonEmptyLine = lines.reverse().find(line => {
-      const cleaned = isCleanText ? line.trim() : PromptDetector.stripAnsiCodes(line).trim();
-      return cleaned;
-    });
-    const cleanLastLine = lastNonEmptyLine ? (isCleanText ? lastNonEmptyLine.trim() : PromptDetector.stripAnsiCodes(lastNonEmptyLine).trim()) : '';
-    return { detected: false, type: 'unknown', ready: false, prompt: cleanLastLine };
+    // Search from end without mutating the array
+    let lastNonEmptyLine = '';
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const cleaned = isCleanText ? lines[i].trim() : PromptDetector.stripAnsiCodes(lines[i]).trim();
+      if (cleaned) {
+        lastNonEmptyLine = cleaned;
+        break;
+      }
+    }
+    return { detected: false, type: 'unknown', ready: false, prompt: lastNonEmptyLine };
   }
 
   private static testLineForPrompt(cleanLine: string, expectedType?: string, learnedPatterns: string[] = []): PromptInfo {
