@@ -784,12 +784,15 @@ Please respond with one of:
   }
 
   private createLLMTimeoutQuestion(sessionId: string, rawOutput: string, error: Error): CommandResult {
-    const question = `Session timed out. Here's the raw output - please analyze and respond:
+    const safeOutput = this.truncateForMCPResponse(rawOutput);
+    const question = `Session timed out. Here's the raw output (truncated) - please analyze and respond:
 
 Raw output:
 """
-${rawOutput}
+${safeOutput}
 """
+
+Note: Output is truncated for readability. Use get_full_output("${sessionId}") for complete output if needed.
 
 Timeout error: ${error.message}
 
@@ -810,7 +813,7 @@ Analyze the output and choose the most appropriate tool to resolve the timeout.`
       executionTime: 0,
       question,
       questionType: 'timeout_analysis',
-      context: { sessionId, rawOutput },
+      context: { sessionId, rawOutput: safeOutput },
       canContinue: true
     };
   }
