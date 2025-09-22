@@ -107,19 +107,19 @@ export class SessionManager {
     nextOffset?: number;
     error?: string;
   } {
+    // Validate session
+    if (!this.sessions.has(sessionId)) {
+      return { success: false, error: `Session ${sessionId} not found` };
+    }
+    
     // Build the full output from chunks when needed
     const fullOutput = this.getOutputBuffer(sessionId);
     
-    if (!fullOutput) {
-      return {
-        success: false,
-        error: `No output buffer found for session ${sessionId}`
-      };
-    }
-
     const totalLength = fullOutput.length;
-    const endPos = Math.min(offset + limit, totalLength);
-    const outputChunk = fullOutput.slice(offset, endPos);
+    const safeOffset = Math.min(Math.max(0, offset ?? 0), totalLength);
+    const safeLimit = Math.max(0, limit ?? 40000);
+    const endPos = Math.min(safeOffset + safeLimit, totalLength);
+    const outputChunk = fullOutput.slice(safeOffset, endPos);
     const actualLength = outputChunk.length;
     const hasMore = endPos < totalLength;
     const nextOffset = hasMore ? endPos : undefined;
@@ -128,7 +128,7 @@ export class SessionManager {
       success: true,
       output: outputChunk,
       totalLength,
-      offset,
+      offset: safeOffset,
       length: actualLength,
       hasMore,
       nextOffset
