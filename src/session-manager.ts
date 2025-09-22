@@ -61,7 +61,7 @@ export class SessionManager {
       }
     }
     
-    console.error(logEntry); // Also log to console.error for immediate visibility
+    console.debug(logEntry); // Use debug for consistent stdout logging
   }
 
   public getDebugLogs(sessionId?: string): string[] {
@@ -640,7 +640,7 @@ Please respond with one of:
 
     // node-pty uses onData method instead of 'data' event
     process.onData((data) => {
-      if (globalThis.process.env.REPL_MCP_DEBUG === '1') {
+      if (['1', 'true', 'yes', 'on'].includes(globalThis.process.env.REPL_MCP_DEBUG?.toLowerCase() || '')) {
         this.log(`[DEBUG ${sessionId}] Raw data received: ${JSON.stringify(data)}`, sessionId);
       }
       appendOutput(data);
