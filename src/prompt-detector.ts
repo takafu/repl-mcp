@@ -3,7 +3,8 @@ import stripAnsi from 'strip-ansi';
 
 export class PromptDetector {
   private static readonly DEBUG = process.env.REPL_MCP_DEBUG === '1';
-  
+  private static readonly MAX_LINES_TO_CHECK = 20; // Configurable limit for performance
+
   private static readonly PROMPT_PATTERNS: Record<string, RegExp> = {
     pry: /^\[\d+\] pry\([^)]+\)>(?:\s*|\u001b\[[0-9;]*[A-Za-z])*\s*$/m,
     irb: /^irb\([^)]+\):\d+[>*](?:\s*|\u001b\[[0-9;]*[A-Za-z])*\s*$/m,
@@ -36,9 +37,9 @@ export class PromptDetector {
       return { detected: false, type: 'unknown', ready: false, prompt: '' };
     }
 
-    // Look for prompt in the last 20 lines (prompts are typically at the end)
+    // Look for prompt in the last N lines (prompts are typically at the end)
     // Check lines in reverse order to find the most recent prompt
-    const startIndex = Math.max(0, lines.length - 20);
+    const startIndex = Math.max(0, lines.length - PromptDetector.MAX_LINES_TO_CHECK);
     for (let i = lines.length - 1; i >= startIndex; i--) {
       const line = lines[i];
       const originalLine = line; // Keep original for logging

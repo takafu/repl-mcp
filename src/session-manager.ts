@@ -86,13 +86,19 @@ export class SessionManager {
 
   // Helper method to build output buffer from chunks when needed
   private getOutputBuffer(sessionId: string): string {
+    // Return cached buffer if available (avoids O(n²) join operations)
+    const cachedBuffer = this.outputBuffers.get(sessionId);
+    if (cachedBuffer !== undefined) {
+      return cachedBuffer;
+    }
+
     const chunks = this.outputChunks.get(sessionId);
     if (!chunks || chunks.length === 0) {
-      return this.outputBuffers.get(sessionId) || '';
+      return '';
     }
-    // Build complete output from chunks (only when actually needed)
+
+    // Build complete output from chunks (only when cache is invalid)
     const fullOutput = chunks.join('');
-    // Cache the result for subsequent calls within the same command
     this.outputBuffers.set(sessionId, fullOutput);
     return fullOutput;
   }
@@ -483,13 +489,19 @@ Please respond with one of:
       session.process.kill();
     }
 
+    // Properly dispose of xterm instances to prevent memory leaks
+    const terminal = this.serverTerminals.get(sessionId);
+    if (terminal && typeof terminal.dispose === 'function') {
+      terminal.dispose();
+    }
+
     this.sessions.delete(sessionId);
     this.outputBuffers.delete(sessionId);
     this.outputChunks.delete(sessionId);
     this.sessionLogs.delete(sessionId); // Clean up session-specific logs
     this.serverTerminals.delete(sessionId); // Clean up server-side terminal
     this.serializeAddons.delete(sessionId); // Clean up serialize addon
-    
+
     return true;
   }
 
@@ -617,8 +629,8 @@ Please respond with one of:
       chunks.push(data);
       this.outputChunks.set(sessionId, chunks);
 
-      // Update outputBuffers on demand (lazy evaluation)
-      // This avoids O(n²) string concatenation on every append
+      // Invalidate cache to force rebuild on next access
+      this.outputBuffers.delete(sessionId);
 
       // Send to server-side terminal for proper ANSI processing
       if (serverTerminal) {
