@@ -2,6 +2,8 @@ import { PromptInfo } from './types.js';
 import stripAnsi from 'strip-ansi';
 
 export class PromptDetector {
+  private static readonly DEBUG = process.env.REPL_MCP_DEBUG === '1';
+  
   private static readonly PROMPT_PATTERNS: Record<string, RegExp> = {
     pry: /^\[\d+\] pry\([^)]+\)>(?:\s*|\u001b\[[0-9;]*[A-Za-z])*\s*$/m,
     irb: /^irb\([^)]+\):\d+[>*](?:\s*|\u001b\[[0-9;]*[A-Za-z])*\s*$/m,
@@ -71,15 +73,21 @@ export class PromptDetector {
       try {
         const regex = new RegExp(learnedPattern);
         matched = regex.test(cleanLine);
-        console.log(`[DEBUG PromptDetector] Testing learned regex pattern /${learnedPattern}/ against "${cleanLine}". Result: ${matched}`);
+        if (PromptDetector.DEBUG) {
+          console.log(`[DEBUG PromptDetector] Testing learned regex pattern /${learnedPattern}/ against "${cleanLine}". Result: ${matched}`);
+        }
       } catch (e) {
         // If regex is invalid, fallback to literal string match
         matched = cleanLine.includes(learnedPattern);
-        console.log(`[DEBUG PromptDetector] Learned pattern "${learnedPattern}" treated as literal string. Match result: ${matched}`);
+        if (PromptDetector.DEBUG) {
+          console.log(`[DEBUG PromptDetector] Learned pattern "${learnedPattern}" treated as literal string. Match result: ${matched}`);
+        }
       }
       
       if (matched) {
-        console.log(`[DEBUG PromptDetector] Matched learned pattern "${learnedPattern}" in line "${cleanLine}"`);
+        if (PromptDetector.DEBUG) {
+          console.log(`[DEBUG PromptDetector] Matched learned pattern "${learnedPattern}" in line "${cleanLine}"`);
+        }
         return {
           detected: true,
           type: expectedType || 'learned',
@@ -95,7 +103,9 @@ export class PromptDetector {
       const continuationPattern = this.CONTINUATION_PATTERNS[expectedType];
       
       const testResult = pattern.test(cleanLine);
-      console.log(`[DEBUG PromptDetector] Testing pattern "${pattern.source}" against "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}". Result: ${testResult}`);
+      if (PromptDetector.DEBUG) {
+        console.log(`[DEBUG PromptDetector] Testing pattern "${pattern.source}" against "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}". Result: ${testResult}`);
+      }
       if (testResult) {
         return {
           detected: true,
@@ -118,7 +128,9 @@ export class PromptDetector {
     // Check all patterns if no specific type or type didn't match
     for (const [type, pattern] of Object.entries(this.PROMPT_PATTERNS)) {
       const testResult = pattern.test(cleanLine);
-      console.error(`[DEBUG PromptDetector] Testing generic pattern "${pattern.source}" against "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}". Result: ${testResult}`);
+      if (PromptDetector.DEBUG) {
+        console.error(`[DEBUG PromptDetector] Testing generic pattern "${pattern.source}" against "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}". Result: ${testResult}`);
+      }
       if (testResult) {
         const continuationPattern = this.CONTINUATION_PATTERNS[type];
         const ready = !continuationPattern || !continuationPattern.test(cleanLine);

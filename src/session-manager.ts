@@ -628,7 +628,9 @@ Please respond with one of:
 
     // node-pty uses onData method instead of 'data' event
     process.onData((data) => {
-      this.log(`[DEBUG ${sessionId}] Raw data received: ${JSON.stringify(data)}`, sessionId);
+      if (process.env.REPL_MCP_DEBUG === '1') {
+        this.log(`[DEBUG ${sessionId}] Raw data received: ${JSON.stringify(data)}`, sessionId);
+      }
       appendOutput(data);
     });
 
