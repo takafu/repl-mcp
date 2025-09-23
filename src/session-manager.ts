@@ -13,6 +13,7 @@ const SerializeAddon = serializePkg.SerializeAddon;
 export class SessionManager {
   private sessions: Map<string, SessionState> = new Map();
   private outputBuffers: Map<string, string> = new Map(); // Complete output buffers (cleared before each command)
+  private outputChunks: Map<string, string[]> = new Map(); // Array-based buffer chunks for efficient concatenation
   private sessionLogs: Map<string, string[]> = new Map(); // Session-specific logs
   private globalLogs: string[] = []; // Global logs (server events)
   private serverTerminals: Map<string, any> = new Map(); // Server-side xterm.js instances
@@ -60,7 +61,7 @@ export class SessionManager {
       }
     }
     
-    console.error(logEntry); // Also log to console.error for immediate visibility
+    console.debug(logEntry); // Use debug for consistent stdout logging
   }
 
   public getDebugLogs(sessionId?: string): string[] {
@@ -83,6 +84,25 @@ export class SessionManager {
     }
   }
 
+  // Helper method to build output buffer from chunks when needed
+  private getOutputBuffer(sessionId: string): string {
+    // Return cached buffer if available (avoids O(n²) join operations)
+    const cachedBuffer = this.outputBuffers.get(sessionId);
+    if (cachedBuffer !== undefined) {
+      return cachedBuffer;
+    }
+
+    const chunks = this.outputChunks.get(sessionId);
+    if (!chunks || chunks.length === 0) {
+      return '';
+    }
+
+    // Build complete output from chunks (only when cache is invalid)
+    const fullOutput = chunks.join('');
+    this.outputBuffers.set(sessionId, fullOutput);
+    return fullOutput;
+  }
+
   public getFullOutput(sessionId: string, offset: number = 0, limit: number = 40000): {
     success: boolean;
     output?: string;
@@ -93,18 +113,19 @@ export class SessionManager {
     nextOffset?: number;
     error?: string;
   } {
-    const fullOutput = this.outputBuffers.get(sessionId);
-    
-    if (!fullOutput) {
-      return {
-        success: false,
-        error: `No output buffer found for session ${sessionId}`
-      };
+    // Validate session
+    if (!this.sessions.has(sessionId)) {
+      return { success: false, error: `Session ${sessionId} not found` };
     }
-
+    
+    // Build the full output from chunks when needed
+    const fullOutput = this.getOutputBuffer(sessionId);
+    
     const totalLength = fullOutput.length;
-    const endPos = Math.min(offset + limit, totalLength);
-    const outputChunk = fullOutput.slice(offset, endPos);
+    const safeOffset = Math.min(Math.max(0, offset ?? 0), totalLength);
+    const safeLimit = Math.max(0, limit ?? 40000);
+    const endPos = Math.min(safeOffset + safeLimit, totalLength);
+    const outputChunk = fullOutput.slice(safeOffset, endPos);
     const actualLength = outputChunk.length;
     const hasMore = endPos < totalLength;
     const nextOffset = hasMore ? endPos : undefined;
@@ -113,7 +134,7 @@ export class SessionManager {
       success: true,
       output: outputChunk,
       totalLength,
-      offset,
+      offset: safeOffset,
       length: actualLength,
       hasMore,
       nextOffset
@@ -151,6 +172,7 @@ export class SessionManager {
 
     this.sessions.set(sessionId, sessionState);
     this.outputBuffers.set(sessionId, '');
+    this.outputChunks.set(sessionId, []); // Initialize chunk array
 
     // Validate starting directory exists
     try {
@@ -245,7 +267,7 @@ export class SessionManager {
       // Check if this is a timeout error that could benefit from LLM assistance
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('timeout')) {
-        const rawOutput = this.outputBuffers.get(sessionId) || '';
+        const rawOutput = this.getOutputBuffer(sessionId);
         this.log(`[DEBUG ${sessionId}] Timeout detected, offering LLM assistance`, sessionId);
         
         return {
@@ -310,8 +332,9 @@ Please respond with one of:
 
     try {
       if (wait_for_prompt) {
-        // Clear output buffer before sending command
+        // Clear output buffer and chunks before sending command
         this.outputBuffers.set(sessionId, '');
+        this.outputChunks.set(sessionId, []);
       }
 
       // Send input with proper line ending
@@ -335,26 +358,24 @@ Please respond with one of:
         return result;
       }
       const output = result.rawOutput!;
-      
+
       const executionTime = Date.now() - startTime;
-      const isError = PromptDetector.isErrorOutput(output, session.config.type);
 
       session.status = 'ready';
       session.history.push(input);
-      
+
       // Limit history to last MAX_HISTORY_SIZE commands
       if (session.history.length > this.MAX_HISTORY_SIZE) {
         session.history = session.history.slice(-this.MAX_HISTORY_SIZE);
       }
-      
+
       session.lastOutput = output;
       session.lastActivity = new Date();
 
       return {
-        success: !isError,
-        rawOutput: output,
-        executionTime,
-        error: isError ? 'Command execution failed' : undefined
+        success: true, // プロンプト検出成功 = コマンド成功
+        rawOutput: this.truncateForMCPResponse(output),
+        executionTime
       };
     } catch (error) {
       if (wait_for_prompt) {
@@ -457,6 +478,7 @@ Please respond with one of:
   }
 
 
+
   public async destroySession(sessionId: string): Promise<boolean> {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -467,12 +489,19 @@ Please respond with one of:
       session.process.kill();
     }
 
+    // Properly dispose of xterm instances to prevent memory leaks
+    const terminal = this.serverTerminals.get(sessionId);
+    if (terminal && typeof terminal.dispose === 'function') {
+      terminal.dispose();
+    }
+
     this.sessions.delete(sessionId);
     this.outputBuffers.delete(sessionId);
+    this.outputChunks.delete(sessionId);
     this.sessionLogs.delete(sessionId); // Clean up session-specific logs
     this.serverTerminals.delete(sessionId); // Clean up server-side terminal
     this.serializeAddons.delete(sessionId); // Clean up serialize addon
-    
+
     return true;
   }
 
@@ -595,12 +624,15 @@ Please respond with one of:
     const serverTerminal = this.serverTerminals.get(sessionId);
     
     const appendOutput = (data: string) => {
-      // Always append to output buffer (complete output, no truncation during collection)
-      const currentBuffer = this.outputBuffers.get(sessionId) || '';
-      const newBuffer = currentBuffer + data;
-      this.outputBuffers.set(sessionId, newBuffer);
-      
-      // Also send to server-side terminal for proper ANSI processing
+      // Use array-based chunks for efficient concatenation
+      const chunks = this.outputChunks.get(sessionId) || [];
+      chunks.push(data);
+      this.outputChunks.set(sessionId, chunks);
+
+      // Invalidate cache to force rebuild on next access
+      this.outputBuffers.delete(sessionId);
+
+      // Send to server-side terminal for proper ANSI processing
       if (serverTerminal) {
         serverTerminal.write(data);
       }
@@ -608,7 +640,9 @@ Please respond with one of:
 
     // node-pty uses onData method instead of 'data' event
     process.onData((data) => {
-      this.log(`[DEBUG ${sessionId}] Raw data received: ${JSON.stringify(data)}`, sessionId);
+      if (['1', 'true', 'yes', 'on'].includes(globalThis.process.env.REPL_MCP_DEBUG?.toLowerCase() || '')) {
+        this.log(`[DEBUG ${sessionId}] Raw data received: ${JSON.stringify(data)}`, sessionId);
+      }
       appendOutput(data);
     });
 
@@ -631,9 +665,10 @@ Please respond with one of:
           return;
         }
 
-        const output = this.outputBuffers.get(sessionId) || '';
-        // Simple check for shell prompt (can be improved)
-        if (output.includes('$') || output.includes('>') || output.includes('#')) {
+        const output = this.getOutputBuffer(sessionId);
+        // Use PromptDetector for accurate shell prompt detection
+        const promptInfo = PromptDetector.detectPrompt(output, undefined, [], false);
+        if (promptInfo.detected && promptInfo.ready) {
           resolve();
         } else {
           setTimeout(checkReady, 100);
@@ -652,8 +687,9 @@ Please respond with one of:
 
     this.log(`[DEBUG ${sessionId}] Executing setup command: ${command}`, sessionId);
 
-    // Clear buffer
+    // Clear buffer and chunks
     this.outputBuffers.set(sessionId, '');
+    this.outputChunks.set(sessionId, []);
     
     // Send command
     session.process!.write(command + '\r\n');
@@ -675,8 +711,9 @@ Please respond with one of:
       throw new Error('Session process not found');
     }
 
-    // Clear buffer
+    // Clear buffer and chunks
     this.outputBuffers.set(sessionId, '');
+    this.outputChunks.set(sessionId, []);
     
     // Start REPL
     session.process!.write(replCommand + '\r\n');
@@ -694,17 +731,17 @@ Please respond with one of:
 
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
-      const initialOutputLength = (this.outputBuffers.get(sessionId) || '').length;
+      const initialOutputLength = this.getOutputBuffer(sessionId).length;
       let hasSeenOutput = false;
       
       const checkPrompt = () => {
         if (Date.now() - startTime > timeout) {
-          const output = this.outputBuffers.get(sessionId) || '';
+          const output = this.getOutputBuffer(sessionId);
           reject(new Error(`Command execution timeout after ${timeout}ms. Output: "${output}"`));
           return;
         }
 
-        const currentOutput = this.outputBuffers.get(sessionId) || '';
+        const currentOutput = this.getOutputBuffer(sessionId);
         
         // Check if we've seen new output since command was sent
         if (currentOutput.length > initialOutputLength) {
@@ -754,18 +791,21 @@ Please respond with one of:
       };
     } catch (error) {
       // Timeout occurred - ask LLM for guidance
-      const rawOutput = this.outputBuffers.get(sessionId) || '';
+      const rawOutput = this.getOutputBuffer(sessionId);
       return this.createLLMTimeoutQuestion(sessionId, rawOutput, error as Error);
     }
   }
 
   private createLLMTimeoutQuestion(sessionId: string, rawOutput: string, error: Error): CommandResult {
-    const question = `Session timed out. Here's the raw output - please analyze and respond:
+    const safeOutput = this.truncateForMCPResponse(rawOutput);
+    const question = `Session timed out. Here's the raw output (truncated) - please analyze and respond:
 
 Raw output:
 """
-${rawOutput}
+${safeOutput}
 """
+
+Note: Output is truncated for readability. Use get_full_output("${sessionId}") for complete output if needed.
 
 Timeout error: ${error.message}
 
@@ -786,7 +826,7 @@ Analyze the output and choose the most appropriate tool to resolve the timeout.`
       executionTime: 0,
       question,
       questionType: 'timeout_analysis',
-      context: { sessionId, rawOutput },
+      context: { sessionId, rawOutput: safeOutput },
       canContinue: true
     };
   }

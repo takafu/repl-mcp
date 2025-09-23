@@ -515,6 +515,9 @@ This will start TypeScript in watch mode for development.
 
 ### Debug Information
 
+#### Environment Variables
+- `REPL_MCP_DEBUG=1`: Enable verbose debug logging for performance troubleshooting and development
+
 Enable detailed debugging by checking the `debugLogs` field in responses:
 
 ```json

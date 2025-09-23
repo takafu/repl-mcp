@@ -2,6 +2,9 @@ import { PromptInfo } from './types.js';
 import stripAnsi from 'strip-ansi';
 
 export class PromptDetector {
+  private static readonly DEBUG = ['1', 'true', 'yes', 'on'].includes(process.env.REPL_MCP_DEBUG?.toLowerCase() || '');
+  private static readonly MAX_LINES_TO_CHECK = 20; // Configurable limit for performance
+
   private static readonly PROMPT_PATTERNS: Record<string, RegExp> = {
     pry: /^\[\d+\] pry\([^)]+\)>(?:\s*|\u001b\[[0-9;]*[A-Za-z])*\s*$/m,
     irb: /^irb\([^)]+\):\d+[>*](?:\s*|\u001b\[[0-9;]*[A-Za-z])*\s*$/m,
@@ -17,7 +20,7 @@ export class PromptDetector {
 
   private static stripAnsiCodes(str: string): string {
     const ansiRegex = /\u001b\[[0-9;?]*[A-Za-z]/g;
-    return stripAnsi(str).trim().replace(ansiRegex, "");
+    return stripAnsi(str).replace(ansiRegex, "").trim();
   }
 
   private static readonly CONTINUATION_PATTERNS: Record<string, RegExp> = {
@@ -34,9 +37,10 @@ export class PromptDetector {
       return { detected: false, type: 'unknown', ready: false, prompt: '' };
     }
 
-    // Look for prompt in all lines, not just the last one
+    // Look for prompt in the last N lines (prompts are typically at the end)
     // Check lines in reverse order to find the most recent prompt
-    for (let i = lines.length - 1; i >= 0; i--) {
+    const startIndex = Math.max(0, lines.length - PromptDetector.MAX_LINES_TO_CHECK);
+    for (let i = lines.length - 1; i >= startIndex; i--) {
       const line = lines[i];
       const originalLine = line; // Keep original for logging
       const cleanLine = isCleanText ? line.trim() : PromptDetector.stripAnsiCodes(line).trim(); // Strip ANSI codes only if needed
@@ -53,12 +57,16 @@ export class PromptDetector {
     }
 
     // If no prompt found, return info about the last non-empty line
-    const lastNonEmptyLine = lines.reverse().find(line => {
-      const cleaned = isCleanText ? line.trim() : PromptDetector.stripAnsiCodes(line).trim();
-      return cleaned;
-    });
-    const cleanLastLine = lastNonEmptyLine ? (isCleanText ? lastNonEmptyLine.trim() : PromptDetector.stripAnsiCodes(lastNonEmptyLine).trim()) : '';
-    return { detected: false, type: 'unknown', ready: false, prompt: cleanLastLine };
+    // Search from end without mutating the array
+    let lastNonEmptyLine = '';
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const cleaned = isCleanText ? lines[i].trim() : PromptDetector.stripAnsiCodes(lines[i]).trim();
+      if (cleaned) {
+        lastNonEmptyLine = cleaned;
+        break;
+      }
+    }
+    return { detected: false, type: 'unknown', ready: false, prompt: lastNonEmptyLine };
   }
 
   private static testLineForPrompt(cleanLine: string, expectedType?: string, learnedPatterns: string[] = []): PromptInfo {
@@ -70,15 +78,21 @@ export class PromptDetector {
       try {
         const regex = new RegExp(learnedPattern);
         matched = regex.test(cleanLine);
-        console.log(`[DEBUG PromptDetector] Testing learned regex pattern /${learnedPattern}/ against "${cleanLine}". Result: ${matched}`);
+        if (PromptDetector.DEBUG) {
+          console.debug(`[DEBUG PromptDetector] Testing learned regex pattern /${learnedPattern}/ against "${cleanLine}". Result: ${matched}`);
+        }
       } catch (e) {
         // If regex is invalid, fallback to literal string match
         matched = cleanLine.includes(learnedPattern);
-        console.log(`[DEBUG PromptDetector] Learned pattern "${learnedPattern}" treated as literal string. Match result: ${matched}`);
+        if (PromptDetector.DEBUG) {
+          console.debug(`[DEBUG PromptDetector] Learned pattern "${learnedPattern}" treated as literal string. Match result: ${matched}`);
+        }
       }
       
       if (matched) {
-        console.log(`[DEBUG PromptDetector] Matched learned pattern "${learnedPattern}" in line "${cleanLine}"`);
+        if (PromptDetector.DEBUG) {
+          console.debug(`[DEBUG PromptDetector] Matched learned pattern "${learnedPattern}" in line "${cleanLine}"`);
+        }
         return {
           detected: true,
           type: expectedType || 'learned',
@@ -94,7 +108,9 @@ export class PromptDetector {
       const continuationPattern = this.CONTINUATION_PATTERNS[expectedType];
       
       const testResult = pattern.test(cleanLine);
-      console.log(`[DEBUG PromptDetector] Testing pattern "${pattern.source}" against "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}". Result: ${testResult}`);
+      if (PromptDetector.DEBUG) {
+        console.debug(`[DEBUG PromptDetector] Testing pattern "${pattern.source}" against "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}". Result: ${testResult}`);
+      }
       if (testResult) {
         return {
           detected: true,
@@ -117,7 +133,9 @@ export class PromptDetector {
     // Check all patterns if no specific type or type didn't match
     for (const [type, pattern] of Object.entries(this.PROMPT_PATTERNS)) {
       const testResult = pattern.test(cleanLine);
-      console.error(`[DEBUG PromptDetector] Testing generic pattern "${pattern.source}" against "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}". Result: ${testResult}`);
+      if (PromptDetector.DEBUG) {
+        console.debug(`[DEBUG PromptDetector] Testing generic pattern "${pattern.source}" against "${cleanLine.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}". Result: ${testResult}`);
+      }
       if (testResult) {
         const continuationPattern = this.CONTINUATION_PATTERNS[type];
         const ready = !continuationPattern || !continuationPattern.test(cleanLine);
@@ -147,105 +165,4 @@ export class PromptDetector {
     return { detected: false, type: 'unknown', ready: false, prompt: cleanLine };
   }
 
-  public static isErrorOutput(output: string, replType: string): boolean {
-    const errorPatterns: Record<string, RegExp[]> = {
-      pry: [
-        /Error:/i,
-        /Exception:/i,
-        /SyntaxError:/i,
-        /NameError:/i,
-        /NoMethodError:/i
-      ],
-      irb: [
-        /Error:/i,
-        /Exception:/i,
-        /SyntaxError:/i,
-        /NameError:/i,
-        /NoMethodError:/i
-      ],
-      ipython: [
-        /Error:/i,
-        /Exception:/i,
-        /SyntaxError:/i,
-        /NameError:/i,
-        /AttributeError:/i,
-        /TypeError:/i
-      ],
-      python: [
-        /Error:/i,
-        /Exception:/i,
-        /SyntaxError:/i,
-        /NameError:/i,
-        /AttributeError:/i,
-        /TypeError:/i
-      ],
-      node: [
-        /Error:/i,
-        /ReferenceError:/i,
-        /SyntaxError:/i,
-        /TypeError:/i
-      ]
-    };
-
-    const patterns = errorPatterns[replType] || errorPatterns.pry;
-    return patterns.some(pattern => pattern.test(output));
-  }
-
-  public static extractCommandOutput(fullOutput: string, command: string, replType: string): string {
-    // Strip ANSI codes for easier parsing
-    const cleanOutput = PromptDetector.stripAnsiCodes(fullOutput);
-    
-    // Split into lines
-    const lines = cleanOutput.split('\n');
-    
-    // Find the command echo line
-    let commandLineIndex = -1;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line.includes(command.trim())) {
-        commandLineIndex = i;
-        break;
-      }
-    }
-    
-    if (commandLineIndex === -1) {
-      // Command not found in output, return everything minus the last prompt line
-      const withoutLastLine = lines.slice(0, -1);
-      return withoutLastLine.join('\n').trim();
-    }
-    
-    // Extract output between command echo and final prompt
-    const outputLines = [];
-    for (let i = commandLineIndex + 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      // Skip empty lines at the start
-      if (outputLines.length === 0 && !line) continue;
-      
-      // Check if this line looks like a prompt
-      const isPromptLine = this.looksLikePrompt(line, replType);
-      if (isPromptLine) {
-        break; // Stop at the next prompt
-      }
-      
-      outputLines.push(lines[i]);
-    }
-    
-    return outputLines.join('\n').trim();
-  }
-  
-  private static looksLikePrompt(line: string, replType: string): boolean {
-    // Simple prompt detection for output extraction
-    if (replType === 'python') {
-      return line === '>>>' || line.startsWith('>>> ');
-    }
-    if (replType === 'node') {
-      return line === '>' || line.startsWith('> ');
-    }
-    if (replType === 'ipython') {
-      return /^In \[\d+\]:/.test(line);
-    }
-    // Add more patterns as needed
-    return false;
-  }
 }
