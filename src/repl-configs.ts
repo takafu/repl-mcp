@@ -13,11 +13,7 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     name: 'IRB (Ruby)',
     type: 'irb',
     shell: process.platform === 'win32' ? 'cmd' : 'bash',
-    commands: [
-      'IRB.conf[:USE_READLINE] = false',
-      'IRB.conf[:PROMPT_MODE] = :DEFAULT',
-      'irb'
-    ],
+    commands: ['irb'],
     timeout: 10000
   },
 
@@ -36,19 +32,6 @@ export const DEFAULT_REPL_CONFIGS: Record<string, REPLConfig> = {
     commands: [
       'bundle exec rails console'
     ],
-    timeout: 10000
-  },
-
-  rails_console_production: {
-    name: 'Rails Console (Production)',
-    type: 'pry',
-    shell: process.platform === 'win32' ? 'cmd' : 'bash',
-    commands: [
-      'RAILS_ENV=production bundle exec rails console'
-    ],
-    environment: {
-      'RAILS_ENV': 'production'
-    },
     timeout: 10000
   },
 
