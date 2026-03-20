@@ -652,13 +652,6 @@ function setupWebServer() {
       return;
     }
   
-    // Allow WebUI access for sessions that can potentially be recovered via LLM assistance
-    if (session.status !== 'ready' && session.status !== 'error') {
-      ws.send(`Error: Session ${sessionId} is not ready (status: ${session.status})\r\n`);
-      ws.close();
-      return;
-    }
-    
     // For error status sessions, check if they have an active process (indicating they might be recoverable)
     if (session.status === 'error' && !session.process) {
       ws.send(`Error: Session ${sessionId} is in error state and cannot be accessed (no active process)\r\n`);
